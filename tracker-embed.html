@@ -290,7 +290,8 @@
     opacity: 0.6;
   }
 
-  .station-student select {
+  .station-student select,
+  .station-student input {
     flex: 1;
     min-height: 32px;
     border: 1px solid var(--border);
@@ -299,6 +300,7 @@
     color: #fff;
     font-weight: 700;
     font-size: 13px;
+    padding: 0 8px;
   }
 
   .station-setup { margin-top: 12px; }
@@ -1184,6 +1186,7 @@
   function init() {
     bindChrome();
     document.addEventListener('visibilitychange', onVisibilityChange);
+    gasRun('ping').catch(function () {});
     if (pipeline.spreadsheetId && el.btnSetupBack) {
       el.btnSetupBack.classList.add('hidden');
     }
@@ -1225,24 +1228,8 @@
   function gasRun(name, arg) {
     var execUrl = String((pipeline && pipeline.execUrl) || window.PIPELINE_EXEC_URL || '').trim();
     if (execUrl) {
-      return fetch(execUrl, {
-        method: 'POST',
-        redirect: 'follow',
-        credentials: 'omit',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: name, payload: arguments.length > 1 ? arg : {} })
-      }).then(function (response) {
-        return response.text();
-      }).then(function (text) {
-        var body;
-        try {
-          body = JSON.parse(text);
-        } catch (error) {
-          throw new Error('The lab service did not return JSON.');
-        }
-        if (!body || !body.ok) throw new Error((body && body.error) || 'Request failed');
-        return body.data;
-      });
+      var requestBody = { action: name, payload: arguments.length > 1 ? arg : {} };
+      return postTrackerJson_(execUrl, requestBody, 0);
     }
     var runner = window.google && google.script && google.script.run;
     if (runner && runner.withSuccessHandler) {
@@ -1253,6 +1240,42 @@
       });
     }
     return Promise.reject(new Error('Apps Script is not available'));
+  }
+
+  function postTrackerJson_(execUrl, requestBody, attempt) {
+    return fetch(execUrl, {
+      method: 'POST',
+      redirect: 'follow',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(requestBody)
+    }).then(function (response) {
+      return response.text();
+    }).then(function (text) {
+      var body;
+      try {
+        body = JSON.parse(text);
+      } catch (error) {
+        if (!attempt) {
+          return new Promise(function (resolve, reject) {
+            setTimeout(function () {
+              postTrackerJson_(execUrl, requestBody, 1).then(resolve, reject);
+            }, 800);
+          });
+        }
+        throw new Error('The lab service did not return JSON.');
+      }
+      if (!body || !body.ok) throw new Error((body && body.error) || 'Request failed');
+      return body.data;
+    }).catch(function (error) {
+      if (attempt) throw error;
+      if (error && error.message === 'The lab service did not return JSON.') throw error;
+      return new Promise(function (resolve, reject) {
+        setTimeout(function () {
+          postTrackerJson_(execUrl, requestBody, 1).then(resolve, reject);
+        }, 800);
+      });
+    });
   }
 
   function trackerAuthFields_(extra) {
@@ -1551,20 +1574,18 @@
       });
     });
     var students = pendingSource.students || [];
+    ensureStudentList_(students);
     var fields = '';
     for (var i = 0; i < setupCount; i++) {
       var selected = setupStudents[i] || '';
-      var options = '<option value="">Select student</option>' + students.map(function (name) {
-        return '<option value="' + escapeHtml(name) + '"' + (name === selected ? ' selected' : '') + '>' +
-          escapeHtml(name) + '</option>';
-      }).join('');
       fields += '<label class="field">Station ' + (i + 1) +
-        '<select data-setup-slot="' + i + '">' + options + '</select></label>';
+        '<input type="text" autocomplete="off" placeholder="Type a name" data-setup-slot="' + i +
+        '" list="station-student-list" value="' + escapeHtml(selected) + '"></label>';
     }
     el.stationAssign.innerHTML = fields;
-    el.stationAssign.querySelectorAll('[data-setup-slot]').forEach(function (select) {
-      select.addEventListener('change', function () {
-        setupStudents[Number(select.getAttribute('data-setup-slot'))] = select.value;
+    el.stationAssign.querySelectorAll('[data-setup-slot]').forEach(function (input) {
+      input.addEventListener('input', function () {
+        setupStudents[Number(input.getAttribute('data-setup-slot'))] = input.value;
         refreshStartButton();
       });
     });
@@ -1575,7 +1596,7 @@
     if (!el.btnStartStations) return;
     var ready = true;
     for (var i = 0; i < setupCount; i++) {
-      if (!setupStudents[i]) ready = false;
+      if (!String(setupStudents[i] || '').trim()) ready = false;
     }
     el.btnStartStations.disabled = !ready;
   }
@@ -1584,8 +1605,8 @@
     if (!pendingSource) return;
     var names = [];
     for (var i = 0; i < setupCount; i++) {
-      if (!setupStudents[i]) return;
-      names.push(setupStudents[i]);
+      if (!String(setupStudents[i] || '').trim()) return;
+      names.push(String(setupStudents[i]).trim());
     }
     var source = pendingSource;
     pendingSource = null;
@@ -2051,24 +2072,38 @@
     }).join('') + '</div>';
   }
 
+  function ensureStudentList_(students) {
+    var list = document.getElementById('station-student-list');
+    if (!list) {
+      list = document.createElement('datalist');
+      list.id = 'station-student-list';
+      document.body.appendChild(list);
+    }
+    var seen = {};
+    var html = '';
+    (students || []).forEach(function (name) {
+      var text = String(name || '').trim();
+      if (!text || seen[text]) return;
+      seen[text] = true;
+      html += '<option value="' + escapeHtml(text) + '"></option>';
+    });
+    list.innerHTML = html;
+  }
+
   function studentSelectHtml(slot) {
     var selected = (state.stationStudents && state.stationStudents[slot]) || '';
     var students = (state.source && state.source.students) || [];
-    var options = '<option value="">Student</option>' + students.map(function (name) {
-      return '<option value="' + escapeHtml(name) + '"' + (name === selected ? ' selected' : '') + '>' +
-        escapeHtml(name) + '</option>';
-    }).join('');
-    if (selected && students.indexOf(selected) < 0) {
-      options += '<option value="' + escapeHtml(selected) + '" selected>' + escapeHtml(selected) + '</option>';
-    }
+    ensureStudentList_(students);
     return '<label class="station-student"><span class="label">Station ' + (slot + 1) + '</span>' +
-      '<select data-station-slot="' + slot + '">' + options + '</select></label>';
+      '<input type="text" autocomplete="off" placeholder="Type a name" data-station-slot="' + slot +
+      '" list="station-student-list" value="' + escapeHtml(selected) + '"></label>';
   }
 
   function bindStationInputs() {
-    el.stations.querySelectorAll('[data-station-slot]').forEach(function (select) {
-      select.addEventListener('change', onStationStudent);
-      select.addEventListener('click', function (event) { event.stopPropagation(); });
+    el.stations.querySelectorAll('[data-station-slot]').forEach(function (input) {
+      input.addEventListener('input', onStationStudent);
+      input.addEventListener('change', onStationStudent);
+      input.addEventListener('click', function (event) { event.stopPropagation(); });
     });
     el.stations.querySelectorAll('.chip').forEach(function (chip) {
       chip.addEventListener('click', onChipClick);
