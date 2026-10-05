@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Sacrifice Tracker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -132,7 +133,7 @@
   .app {
     height: 100vh;
     display: grid;
-    grid-template-rows: 32px 1fr 38px;
+    grid-template-rows: 48px 1fr auto;
   }
 
   .topbar, .footbar {
@@ -157,21 +158,32 @@
   }
 
   .topbar-title {
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .topbar-sub {
-    font-size: 11px;
-    color: var(--text-secondary);
-    opacity: 0.85;
+  .topbar-sheet {
+    font-size: 12px;
+    font-weight: 700;
+    color: #8ec5ff;
+    text-decoration: none;
     white-space: nowrap;
+  }
+
+  .topbar-sub {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    opacity: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .progress {
@@ -190,6 +202,8 @@
   }
 
   .footbar {
+    flex-wrap: wrap;
+    min-height: 38px;
     justify-content: space-between;
     border-top: 1px solid var(--border);
   }
@@ -1012,6 +1026,7 @@
       <h1>Sacrifice Tracker</h1>
       <div id="resumeBox" class="resume-box hidden"></div>
       <div id="fileStatus" class="status-line">Loading files…</div>
+      <button type="button" id="btnRefreshSetup" class="btn btn-ghost">רענון נתונים מהגיליון</button>
       <div id="fileList" class="file-list"></div>
       <div id="stationSetup" class="station-setup hidden">
         <p id="stationSetupFile" class="lede"></p>
@@ -1030,8 +1045,9 @@
     <header class="topbar">
       <div class="topbar-line">
         <span id="expTitle" class="topbar-title">Session</span>
-        <span id="expMeta" class="topbar-sub"></span>
+        <a id="expSheetLink" class="topbar-sheet hidden" href="#" target="_blank" rel="noopener noreferrer">Open planning sheet</a>
       </div>
+      <div id="expMeta" class="topbar-sub"></div>
       <div id="progressLabel" class="progress">0 / 0 done</div>
     </header>
 
@@ -1054,6 +1070,7 @@
 
     <footer class="footbar">
       <div class="foot-subdued">
+        <button type="button" id="btnRefreshSheet" class="btn btn-ghost">רענון נתונים מהגיליון</button>
         <button type="button" id="btnDownloadJson" class="btn btn-ghost">Download JSON</button>
         <button type="button" id="btnNewSession" class="btn btn-ghost">New session</button>
       </div>
@@ -1090,11 +1107,14 @@
     </div>
   </div>
 
-  <script>(function(){var p=new URLSearchParams(location.search);var ctx={spreadsheetId:p.get("spreadsheetId")||"",folderId:p.get("folderId")||"",execUrl:"https://script.google.com/macros/s/AKfycbxxFL6L2P5q_FaFvW5n0sB6eTsZ7AYH-jNn_SNHbsKhpZlz8LvseeLEz--hse3u_8xmEg/exec"};window.PIPELINE_CONTEXT=ctx;window.PIPELINE_EXEC_URL=ctx.execUrl;})();</script>
+  <script>(function(){var p=new URLSearchParams(location.search);var ctx={spreadsheetId:p.get("spreadsheetId")||"",folderId:p.get("folderId")||"",sig:p.get("sig")||"",execUrl:"https://script.google.com/macros/s/AKfycbxxFL6L2P5q_FaFvW5n0sB6eTsZ7AYH-jNn_SNHbsKhpZlz8LvseeLEz--hse3u_8xmEg/exec"};window.PIPELINE_CONTEXT=ctx;window.PIPELINE_EXEC_URL=ctx.execUrl;})();</script>
 <script>
 (function () {
-  var pipeline = window.PIPELINE_CONTEXT || { spreadsheetId: '', folderId: '' };
+  var pipeline = window.PIPELINE_CONTEXT || { spreadsheetId: '', folderId: '', sig: '' };
   var STORAGE_KEY = pipeline.spreadsheetId
+    ? ('sac_tracker_v1_' + pipeline.spreadsheetId)
+    : '';
+  var LEGACY_STORAGE_KEY = pipeline.spreadsheetId
     ? ('dissectionTracker.v1:' + pipeline.spreadsheetId)
     : '';
   var ICE_MS = 30 * 60 * 1000;
@@ -1118,6 +1138,7 @@
   var modalContext = null;
   var notesTimer = null;
   var syncing = false;
+  var refreshing = false;
   var completionSyncFired = false;
 
   var el = {
@@ -1135,6 +1156,9 @@
     board: document.getElementById('board'),
     expTitle: document.getElementById('expTitle'),
     expMeta: document.getElementById('expMeta'),
+    expSheetLink: document.getElementById('expSheetLink'),
+    btnRefreshSheet: document.getElementById('btnRefreshSheet'),
+    btnRefreshSetup: document.getElementById('btnRefreshSetup'),
     progressLabel: document.getElementById('progressLabel'),
     iceList: document.getElementById('iceList'),
     stations: document.getElementById('stations'),
@@ -1173,6 +1197,8 @@
 
   function bindChrome() {
     el.btnSync.addEventListener('click', function () { onSync(); });
+    if (el.btnRefreshSheet) el.btnRefreshSheet.addEventListener('click', refreshFromSheet);
+    if (el.btnRefreshSetup) el.btnRefreshSetup.addEventListener('click', refreshFromSheet);
     el.btnDownloadJson.addEventListener('click', downloadJsonBackup);
     el.btnNewSession.addEventListener('click', confirmNewSession);
     if (el.btnCompleteJson) el.btnCompleteJson.addEventListener('click', downloadJsonBackup);
@@ -1229,10 +1255,25 @@
     return Promise.reject(new Error('Apps Script is not available'));
   }
 
+  function trackerAuthFields_(extra) {
+    var body = extra || {};
+    if (!body.spreadsheetId) body.spreadsheetId = pipeline.spreadsheetId || body.fileId || body.sourceFileId || '';
+    if (!body.folderId) body.folderId = pipeline.folderId || '';
+    body.sig = pipeline.sig || '';
+    return body;
+  }
+
   function readSaved() {
     if (!STORAGE_KEY) return null;
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw && LEGACY_STORAGE_KEY) {
+        raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (raw) {
+          localStorage.setItem(STORAGE_KEY, raw);
+          localStorage.removeItem(LEGACY_STORAGE_KEY);
+        }
+      }
       if (!raw) return null;
       var parsed = JSON.parse(raw);
       if (!parsed || !parsed.source || !parsed.miceById) return null;
@@ -1315,7 +1356,16 @@
 
   function pickFile(fileId) {
     el.fileStatus.textContent = 'Loading mice…';
-    gasRun('loadPlanningSheet', fileId).then(function (source) {
+    gasRun('loadPlanningSheet', trackerAuthFields_({
+      fileId: fileId,
+      spreadsheetId: fileId || pipeline.spreadsheetId || ''
+    })).then(function (source) {
+      var saved = readSaved();
+      if (saved && saved.miceById) {
+        var merged = hydrateState(mergeMiceIntoState(saved, source));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        showSavedResume();
+      }
       pendingSource = source;
       setupCount = STATION_MIN;
       setupStudents = [];
@@ -1323,6 +1373,156 @@
     }).catch(function (error) {
       el.fileStatus.textContent = error && error.message ? error.message : 'Failed to load sheet.';
     });
+  }
+
+  function refreshFromSheet() {
+    if (!pipeline.spreadsheetId || refreshing) return;
+    refreshing = true;
+    if (el.syncStatus) el.syncStatus.textContent = 'Refreshing from the planning sheet…';
+    if (el.fileStatus && !sessionActive) el.fileStatus.textContent = 'Refreshing from the planning sheet…';
+    gasRun('loadPlanningSheet', trackerAuthFields_({
+      fileId: pipeline.spreadsheetId,
+      spreadsheetId: pipeline.spreadsheetId
+    })).then(function (source) {
+      refreshing = false;
+      if (state && sessionActive) {
+        state = hydrateState(mergeMiceIntoState(state, source));
+        persist();
+        renderAll();
+        if (el.syncStatus) el.syncStatus.textContent = 'Planning sheet merged.';
+        return;
+      }
+      var saved = readSaved();
+      if (saved && saved.miceById) {
+        var merged = hydrateState(mergeMiceIntoState(saved, source));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        showSavedResume();
+      }
+      pendingSource = source;
+      if (el.fileStatus) el.fileStatus.textContent = 'Planning sheet merged.';
+      renderStationSetup();
+    }).catch(function (error) {
+      refreshing = false;
+      var message = error && error.message ? error.message : 'Failed to refresh the planning sheet.';
+      if (el.syncStatus && sessionActive) el.syncStatus.textContent = message;
+      if (el.fileStatus && !sessionActive) el.fileStatus.textContent = message;
+    });
+  }
+
+  function mouseIdentity_(mouse) {
+    var cage = String((mouse && mouse.cage) || '').trim().toLowerCase();
+    var pyrat = String((mouse && mouse.pyrat) || '').trim().toLowerCase();
+    var tag = String((mouse && mouse.tag) || '').trim().toLowerCase();
+    var no = String((mouse && (mouse.mouseNo || mouse.id)) || '').trim().toLowerCase();
+    if (cage && pyrat) return 'c:' + cage + '|p:' + pyrat;
+    if (cage && tag && no) return 'c:' + cage + '|t:' + tag + '|n:' + no;
+    if (cage && no) return 'c:' + cage + '|n:' + no;
+    if (pyrat) return 'p:' + pyrat;
+    return 'row:' + String((mouse && mouse.sheetRow) || '') + '|n:' + no;
+  }
+
+  function hasRecordedWork_(mouse) {
+    if (!mouse) return false;
+    if (mouse.status && mouse.status !== 'queued') return true;
+    if (mouse.sacTime || mouse.bloodTime || mouse.generalNotes || mouse.notes) return true;
+    if ((mouse.selectedOrgans || []).length) return true;
+    if ((mouse.pathology || []).length) return true;
+    if ((mouse.internalSwaps || []).length || (mouse.crossSwaps || []).length) return true;
+    var organs = mouse.organs || {};
+    var name;
+    for (name in organs) {
+      if (!Object.prototype.hasOwnProperty.call(organs, name)) continue;
+      if (organs[name] && (organs[name].missing || organs[name].pfa)) return true;
+    }
+    var weights = mouse.weights || {};
+    var key;
+    for (key in weights) {
+      if (!Object.prototype.hasOwnProperty.call(weights, key)) continue;
+      if (String(weights[key] || '').trim()) return true;
+    }
+    return false;
+  }
+
+  function copyRecorded_(target, prev) {
+    var weights = target.weights || {};
+    var prevWeights = prev.weights || {};
+    var key;
+    for (key in prevWeights) {
+      if (!Object.prototype.hasOwnProperty.call(prevWeights, key)) continue;
+      if (String(prevWeights[key] || '').trim()) weights[key] = prevWeights[key];
+    }
+    target.weights = weights;
+    target.status = prev.status || target.status;
+    target.sacTime = prev.sacTime || '';
+    target.bloodTime = prev.bloodTime || '';
+    target.selectedOrgans = (prev.selectedOrgans || []).slice();
+    target.organs = prev.organs || target.organs;
+    target.pathology = prev.pathology || [];
+    target.internalSwaps = prev.internalSwaps || [];
+    target.crossSwaps = prev.crossSwaps || [];
+    target.generalNotes = prev.generalNotes || '';
+    target.notes = prev.notes || '';
+    target.student = prev.student || '';
+  }
+
+  function mergeMiceIntoState(baseState, source) {
+    var stationCount = baseState.stationCount || STATION_MIN;
+    var students = baseState.stationStudents || [];
+    var fresh = createState(source, stationCount, students);
+    var oldByKey = {};
+    Object.keys(baseState.miceById || {}).forEach(function (id) {
+      var mouse = baseState.miceById[id];
+      oldByKey[mouseIdentity_(mouse)] = mouse;
+    });
+    var consumed = {};
+    Object.keys(fresh.miceById).forEach(function (id) {
+      var mouse = fresh.miceById[id];
+      var key = mouseIdentity_(mouse);
+      var prev = oldByKey[key];
+      if (!prev || !hasRecordedWork_(prev)) return;
+      consumed[key] = true;
+      copyRecorded_(mouse, prev);
+    });
+    Object.keys(baseState.miceById || {}).forEach(function (id) {
+      var mouse = baseState.miceById[id];
+      var key = mouseIdentity_(mouse);
+      if (consumed[key] || !hasRecordedWork_(mouse)) return;
+      if (!fresh.miceById[mouse.id]) fresh.miceById[mouse.id] = mouse;
+    });
+    fresh.stationSlots = [];
+    var oldSlots = baseState.stationSlots || [];
+    var s;
+    for (s = 0; s < fresh.stationCount; s++) {
+      var slot = oldSlots[s];
+      fresh.stationSlots.push(slot && fresh.miceById[String(slot)] ? slot : null);
+    }
+    var inStation = {};
+    fresh.stationSlots.forEach(function (id) {
+      if (id) inStation[String(id)] = true;
+    });
+    var order = [];
+    (baseState.queueOrder || []).forEach(function (id) {
+      var mouse = fresh.miceById[id];
+      if (!mouse || mouse.status !== 'queued' || inStation[String(id)] || order.indexOf(id) >= 0) return;
+      order.push(id);
+    });
+    Object.keys(fresh.miceById).forEach(function (id) {
+      var mouse = fresh.miceById[id];
+      if (mouse.status !== 'queued' || inStation[String(id)] || order.indexOf(id) >= 0) return;
+      order.push(id);
+    });
+    fresh.queueOrder = order;
+    fresh.iceTimers = baseState.iceTimers || [];
+    fresh.exported = !!baseState.exported;
+    fresh.startedAtMs = baseState.startedAtMs || Date.now();
+    fresh.completedAtMs = baseState.completedAtMs || null;
+    fresh.exportFileId = baseState.exportFileId || '';
+    fresh.exportUrl = baseState.exportUrl || '';
+    fresh.exportFileName = baseState.exportFileName || '';
+    fresh.lastSyncOk = typeof baseState.lastSyncOk === 'undefined' ? null : baseState.lastSyncOk;
+    fresh.source = source;
+    fresh.updatedAt = Date.now();
+    return fresh;
   }
 
   function hideStationSetup() {
@@ -1548,6 +1748,7 @@
     stopTicks();
     stopWakeLock();
     if (clearStorage && STORAGE_KEY) localStorage.removeItem(STORAGE_KEY);
+    if (clearStorage && LEGACY_STORAGE_KEY) localStorage.removeItem(LEGACY_STORAGE_KEY);
     state = null;
     el.app.classList.add('hidden');
     el.setup.classList.remove('hidden');
@@ -1585,11 +1786,25 @@
   function renderAll() {
     if (!state) return;
     var meta = (state.source && state.source.meta) || {};
-    el.expTitle.textContent = meta['Experiment / Protocol'] || state.source.fileName || 'Session';
+    var source = state.source || {};
+    var title = meta['Experiment / Protocol'] || source.projectName || source.fileName || 'Session';
+    el.expTitle.textContent = title;
+    var student = source.studentName || meta.Researcher || '';
+    var project = source.projectName || '';
     var bits = [];
-    if (meta.Researcher) bits.push(meta.Researcher);
+    if (student) bits.push(student);
+    if (project && project !== title) bits.push(project);
     if (meta['Sacrifice date']) bits.push(meta['Sacrifice date']);
     el.expMeta.textContent = bits.join(' · ');
+    var sheetUrl = source.spreadsheetUrl || '';
+    if (el.expSheetLink) {
+      if (sheetUrl) {
+        el.expSheetLink.href = sheetUrl;
+        el.expSheetLink.classList.remove('hidden');
+      } else {
+        el.expSheetLink.classList.add('hidden');
+      }
+    }
     var done = allMice().filter(isTerminal).length;
     el.progressLabel.innerHTML = done + '<span> / ' + allMice().length + ' done</span>';
     if (el.board) el.board.classList.toggle('no-blood', !hasBloodColumn());
@@ -2359,8 +2574,10 @@
   function buildPayload() {
     return {
       sourceFileId: state.source.fileId,
+      spreadsheetId: state.source.fileId || pipeline.spreadsheetId || '',
       sourceFileName: state.source.fileName,
       folderId: (state.source && state.source.projectFolderId) || pipeline.folderId || '',
+      sig: pipeline.sig || '',
       exportFileId: state.exportFileId || '',
       exportUrl: state.exportUrl || '',
       exportFileName: state.exportFileName || '',
