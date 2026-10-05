@@ -407,16 +407,14 @@
   .queue-list { padding: 2px 4px; }
 
   .queue-item {
-    display: grid;
-    grid-template-columns: auto auto 1fr;
-    align-items: baseline;
+    display: flex;
+    align-items: center;
     gap: 6px;
     width: 100%;
     background: transparent;
     border: 0;
     border-bottom: 1px solid var(--border);
     margin: 0;
-    cursor: pointer;
     min-height: 36px;
     text-align: left;
     padding: 4px 4px;
@@ -424,7 +422,102 @@
     color: var(--text-primary);
   }
 
-  .queue-item:hover, .queue-item:focus { background: #25252c; }
+  .queue-main {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: baseline;
+    gap: 6px;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    min-height: 36px;
+    text-align: left;
+    padding: 0;
+  }
+
+  .queue-item:hover, .queue-item:focus-within { background: #25252c; }
+
+  .drag-handle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    color: #c5c5d4;
+    background: #121217;
+    border: 1px solid var(--border);
+    font-size: 16px;
+    line-height: 1;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+  }
+
+  .card-move {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .station-route {
+    width: 84px;
+    min-height: 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #121217;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 0 4px;
+  }
+
+  body.is-mouse-drag .drag-handle { cursor: grabbing; }
+
+  .is-drag-source { opacity: 0.45; }
+
+  body.is-mouse-drag .station-slot,
+  body.is-mouse-drag .queue-list {
+    border-radius: var(--radius);
+    outline: 2px dashed var(--action-blue);
+    outline-offset: -2px;
+  }
+
+  body.is-mouse-drag .station-slot.is-drop-over,
+  body.is-mouse-drag .queue-list.is-drop-over {
+    outline-color: #fff;
+    background: rgba(52, 152, 219, 0.16);
+  }
+
+  .drop-hint {
+    display: none;
+    pointer-events: none;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  body.is-mouse-drag .drop-hint { display: block; }
+  body.is-mouse-drag .empty-rest { display: none; }
+
+  .station-slot { position: relative; }
+
+  body.is-mouse-drag .station-slot > .drop-hint {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    z-index: 4;
+    padding: 8px;
+    border-radius: var(--radius);
+    background: rgba(18, 18, 23, 0.88);
+    border: 2px dashed var(--action-blue);
+  }
 
   .queue-no {
     font-family: "JetBrains Mono", ui-monospace, monospace;
@@ -1066,7 +1159,7 @@
 
       <section class="col queue-col" aria-label="Upcoming mice">
         <h2>Upcoming</h2>
-        <div id="queueList" class="queue-list"></div>
+        <div id="queueList" class="queue-list" data-drop-queue="1"></div>
       </section>
     </main>
 
@@ -1215,6 +1308,14 @@
     if (el.btnSetupBack) el.btnSetupBack.addEventListener('click', hideStationSetup);
     el.app.addEventListener('click', onAppClick);
     if (el.completeScreen) el.completeScreen.addEventListener('click', onAppClick);
+    document.addEventListener('pointerdown', onDragPointerDown, { passive: false });
+    document.addEventListener('pointermove', onDragPointerMove, { passive: false });
+    document.addEventListener('pointerup', onDragPointerUp);
+    document.addEventListener('pointercancel', onDragPointerCancel);
+    document.addEventListener('mouseup', releaseDragAttribute_);
+    document.addEventListener('dragend', releaseDragAttribute_);
+    document.addEventListener('dragstart', onCardDragStart);
+    document.addEventListener('change', onStationRouteChange);
   }
 
   function confirmNewSession() {
@@ -1308,6 +1409,7 @@
 
   function persist() {
     if (!state || !STORAGE_KEY) return;
+    syncStationIndexes_();
     state.updatedAt = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }
@@ -1486,6 +1588,7 @@
     target.generalNotes = prev.generalNotes || '';
     target.notes = prev.notes || '';
     target.student = prev.student || '';
+    target.stationIndex = prev.stationIndex == null || prev.stationIndex === '' ? null : Number(prev.stationIndex);
   }
 
   function mergeMiceIntoState(baseState, source) {
@@ -1520,8 +1623,23 @@
       fresh.stationSlots.push(slot && fresh.miceById[String(slot)] ? slot : null);
     }
     var inStation = {};
-    fresh.stationSlots.forEach(function (id) {
-      if (id) inStation[String(id)] = true;
+    fresh.stationSlots.forEach(function (id, index) {
+      if (!id || !fresh.miceById[String(id)]) return;
+      inStation[String(id)] = true;
+      fresh.miceById[String(id)].stationIndex = index;
+    });
+    Object.keys(fresh.miceById).forEach(function (id) {
+      var mouse = fresh.miceById[id];
+      if (!mouse || mouse.status !== 'active' || inStation[String(id)]) return;
+      var idx = mouse.stationIndex == null || mouse.stationIndex === '' ? -1 : Number(mouse.stationIndex);
+      if (idx >= 0 && idx < fresh.stationCount && !fresh.stationSlots[idx]) {
+        fresh.stationSlots[idx] = String(id);
+        inStation[String(id)] = true;
+        mouse.stationIndex = idx;
+        return;
+      }
+      mouse.status = 'queued';
+      mouse.stationIndex = null;
     });
     var order = [];
     (baseState.queueOrder || []).forEach(function (id) {
@@ -1886,21 +2004,39 @@
     }
   }
 
+  function dragHandleHtml() {
+    return '<span class="drag-handle" title="גרור לשיבוץ או העברת תחנה" aria-label="גרור לשיבוץ או העברת תחנה">⠿</span>';
+  }
+
+  function routeMenuHtml(mouseId, slot) {
+    var html = '<select class="station-route" data-mouse-id="' + escapeHtml(mouseId) + '" aria-label="תחנה" title="תחנה">';
+    html += '<option value="queue"' + (slot < 0 ? ' selected' : '') + '>המתנה</option>';
+    var i;
+    for (i = 0; i < stationCount(); i++) {
+      html += '<option value="' + i + '"' + (slot === i ? ' selected' : '') + '>תחנה ' + (i + 1) + '</option>';
+    }
+    html += '</select>';
+    return html;
+  }
+
   function renderQueue() {
+    var hint = '<div class="drop-hint">שחרר להחזרה להמתנה</div>';
     var ids = state.queueOrder || [];
     if (!ids.length) {
-      el.queueList.innerHTML = '<div class="muted">Queue empty.</div>';
+      el.queueList.innerHTML = hint + '<div class="muted">Queue empty.</div>';
       return;
     }
-    el.queueList.innerHTML = ids.map(function (id) {
+    el.queueList.innerHTML = hint + ids.map(function (id) {
       var mouse = mouseById(id);
       if (!mouse) return '';
-      return '<button type="button" class="queue-item" data-action="queue-select" data-mouse-id="' +
+      return '<article class="queue-item" draggable="false" data-mouse-id="' + escapeHtml(id) + '">' +
+        dragHandleHtml() + routeMenuHtml(id, -1) +
+        '<button type="button" class="queue-main" data-action="queue-select" data-mouse-id="' +
         escapeHtml(id) + '"><span class="queue-no">#' + escapeHtml(mouse.mouseNo) + '</span>' +
         '<span class="queue-tag">' + escapeHtml(mouse.tag || '') + '</span>' +
         '<span class="queue-meta">' + escapeHtml(mouse.pyrat || '') +
         (mouse.genotype ? ' · ' + escapeHtml(mouse.genotype) : '') +
-        '</span></button>';
+        '</span></button></article>';
     }).join('');
   }
 
@@ -1910,12 +2046,18 @@
     for (var i = 0; i < stationCount(); i++) {
       var id = state.stationSlots[i];
       var assign = studentSelectHtml(i);
-      if (!id || !mouseById(id)) {
-        html += '<div class="station-slot">' + assign +
-          '<div class="station-empty">Tap a mouse from the queue</div></div>';
-        continue;
+      var mouse = id ? mouseById(id) : null;
+      var hint = mouse
+        ? 'שחרר להחלפה עם תחנה ' + (i + 1)
+        : 'שחרר לשיבוץ בתחנה ' + (i + 1);
+      html += '<div class="station-slot" data-drop-slot="' + i + '">' + assign;
+      if (!mouse) {
+        html += '<div class="station-empty"><span class="empty-rest">Tap a mouse from the queue</span>' +
+          '<span class="drop-hint">' + hint + '</span></div>';
+      } else {
+        html += '<div class="drop-hint">' + hint + '</div>' + stationCardHtml(mouse, i);
       }
-      html += '<div class="station-slot">' + assign + stationCardHtml(mouseById(id), i) + '</div>';
+      html += '</div>';
     }
     el.stations.innerHTML = html;
     bindStationInputs();
@@ -2012,7 +2154,8 @@
     var selectedCount = (mouse.selectedOrgans || []).length;
     var toolDis = selectedCount ? '' : ' disabled';
 
-    return '<article class="station-card" data-slot="' + slot + '" data-mouse-id="' + escapeHtml(mouse.id) + '">' +
+    return '<article class="station-card" draggable="false" data-slot="' + slot + '" data-mouse-id="' + escapeHtml(mouse.id) + '">' +
+      '<div class="card-move">' + dragHandleHtml() + routeMenuHtml(mouse.id, slot) + '</div>' +
       '<header class="station-id">' +
       '<div>' +
       '<div class="station-id-top">' +
@@ -2199,12 +2342,228 @@
       el.syncStatus.textContent = 'All stations are full.';
       return;
     }
-    state.queueOrder = state.queueOrder.filter(function (id) { return String(id) !== String(mouseId); });
+    routeMouse_(mouseId, { type: 'slot', index: slot });
+  }
+
+  var dragGesture = null;
+  var DRAG_SLOP_PX = 8;
+
+  function interactiveDragTarget_(target) {
+    return !!(target && target.closest && target.closest('input, button, select, textarea, label'));
+  }
+
+  function onDragPointerDown(event) {
+    if (!state || !sessionActive) return;
+    if (event.isPrimary === false) return;
+    if (event.button != null && event.button !== 0) return;
+    var target = event.target;
+    if (!target || !target.closest) return;
+    if (interactiveDragTarget_(target)) return;
+    var handle = target.closest('.drag-handle');
+    if (!handle) return;
+    var card = handle.closest('[data-mouse-id]');
+    if (!card) return;
+    card.setAttribute('draggable', 'true');
+    if (event.cancelable) event.preventDefault();
+    dragGesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      card: card,
+      mouseId: card.getAttribute('data-mouse-id'),
+      armed: false
+    };
+    try { handle.setPointerCapture(event.pointerId); } catch (err) {}
+  }
+
+  function onDragPointerMove(event) {
+    if (!dragGesture || event.pointerId !== dragGesture.pointerId) return;
+    var dx = event.clientX - dragGesture.startX;
+    var dy = event.clientY - dragGesture.startY;
+    if (!dragGesture.armed) {
+      if (Math.sqrt(dx * dx + dy * dy) < DRAG_SLOP_PX) return;
+      dragGesture.armed = true;
+      dragGesture.card.classList.add('is-drag-source');
+      document.body.classList.add('is-mouse-drag');
+    }
+    if (event.cancelable) event.preventDefault();
+    highlightDrop_(event.clientX, event.clientY);
+  }
+
+  function onDragPointerUp(event) {
+    finishDrag_(event, true);
+  }
+
+  function onDragPointerCancel(event) {
+    finishDrag_(event, false);
+  }
+
+  function finishDrag_(event, commit) {
+    if (!dragGesture) return;
+    if (event && event.pointerId != null && event.pointerId !== dragGesture.pointerId) return;
+    var gesture = dragGesture;
+    dragGesture = null;
+    releaseDragAttribute_();
+    if (gesture.card) gesture.card.classList.remove('is-drag-source');
+    document.body.classList.remove('is-mouse-drag');
+    clearDropOver_();
+    if (!commit || !gesture.armed) return;
+    var zone = dropZoneAt_(event.clientX, event.clientY);
+    if (!zone) return;
+    routeMouse_(gesture.mouseId, zone);
+  }
+
+  function releaseDragAttribute_() {
+    document.querySelectorAll('[data-mouse-id][draggable="true"]').forEach(function (card) {
+      card.setAttribute('draggable', 'false');
+    });
+  }
+
+  function onCardDragStart(event) {
+    var card = event.target && event.target.closest ? event.target.closest('[data-mouse-id]') : null;
+    if (!card || card.getAttribute('draggable') !== 'true') return;
+    event.preventDefault();
+    if (!dragGesture || !dragGesture.armed) card.setAttribute('draggable', 'false');
+  }
+
+  function highlightDrop_(x, y) {
+    clearDropOver_();
+    var zone = dropZoneAt_(x, y);
+    if (!zone) return;
+    var node = zone.type === 'queue'
+      ? el.queueList
+      : el.stations.querySelector('[data-drop-slot="' + zone.index + '"]');
+    if (node) node.classList.add('is-drop-over');
+  }
+
+  function clearDropOver_() {
+    document.querySelectorAll('.is-drop-over').forEach(function (node) {
+      node.classList.remove('is-drop-over');
+    });
+  }
+
+  function dropZoneAt_(x, y) {
+    var stack = document.elementsFromPoint(x, y);
+    var i;
+    for (i = 0; i < stack.length; i++) {
+      var node = stack[i];
+      if (!node || !node.closest) continue;
+      if (node.closest('.is-drag-source')) continue;
+      var slot = node.closest('[data-drop-slot]');
+      if (slot && el.stations && el.stations.contains(slot)) {
+        return { type: 'slot', index: Number(slot.getAttribute('data-drop-slot')) };
+      }
+      if (node.closest('[data-drop-queue]')) return { type: 'queue' };
+    }
+    return null;
+  }
+
+  function onStationRouteChange(event) {
+    var sel = event.target && event.target.closest ? event.target.closest('.station-route') : null;
+    if (!sel || !state || !sessionActive) return;
+    var mouseId = sel.getAttribute('data-mouse-id');
+    if (sel.value === 'queue') routeMouse_(mouseId, { type: 'queue' });
+    else routeMouse_(mouseId, { type: 'slot', index: Number(sel.value) });
+  }
+
+  function queueHas_(mouseId) {
+    return (state.queueOrder || []).some(function (id) { return String(id) === String(mouseId); });
+  }
+
+  function takeQueue_(mouseId) {
+    state.queueOrder = (state.queueOrder || []).filter(function (id) {
+      return String(id) !== String(mouseId);
+    });
+  }
+
+  function routeMouse_(mouseId, dest) {
+    if (!state || !dest) return false;
+    var mouse = mouseById(mouseId);
+    if (!mouse || mouse.status === 'done' || mouse.status === 'missing') return false;
+    var fromSlot = slotOfMouse(mouseId);
+    var fromQueue = fromSlot < 0 && queueHas_(mouseId);
+    if (fromSlot < 0 && !fromQueue) return false;
+    if (dest.type === 'queue') {
+      if (fromSlot < 0) return false;
+      state.stationSlots[fromSlot] = null;
+      mouse.status = 'queued';
+      takeQueue_(mouseId);
+      state.queueOrder.unshift(String(mouse.id));
+      persist();
+      renderAll();
+      return true;
+    }
+    var to = Number(dest.index);
+    if (!(to >= 0) || to >= stationCount() || fromSlot === to) return false;
+    var occupantId = state.stationSlots[to] ? String(state.stationSlots[to]) : '';
+    if (fromSlot >= 0) state.stationSlots[fromSlot] = null;
+    else takeQueue_(mouseId);
+    if (occupantId && occupantId !== String(mouse.id)) {
+      var occupant = mouseById(occupantId);
+      if (fromSlot >= 0) {
+        state.stationSlots[fromSlot] = occupantId;
+        if (occupant && occupant.status !== 'done' && occupant.status !== 'missing') {
+          occupant.status = 'active';
+          occupant.student = (state.stationStudents && state.stationStudents[fromSlot]) || '';
+        }
+      } else if (occupant && occupant.status !== 'done' && occupant.status !== 'missing') {
+        occupant.status = 'queued';
+        takeQueue_(occupantId);
+        state.queueOrder.unshift(occupantId);
+      }
+    }
+    state.stationSlots[to] = String(mouse.id);
     mouse.status = 'active';
-    mouse.student = state.stationStudents[slot] || '';
-    state.stationSlots[slot] = String(mouseId);
+    mouse.student = (state.stationStudents && state.stationStudents[to]) || '';
+    takeQueue_(mouse.id);
     persist();
     renderAll();
+    return true;
+  }
+
+  function syncStationIndexes_() {
+    var seen = {};
+    var i;
+    for (i = 0; i < stationCount(); i++) {
+      var id = state.stationSlots[i] ? String(state.stationSlots[i]) : '';
+      var mouse = id ? state.miceById[id] : null;
+      if (!id || !mouse || seen[id] || mouse.status === 'done' || mouse.status === 'missing') {
+        state.stationSlots[i] = null;
+        if (mouse && (mouse.status === 'done' || mouse.status === 'missing')) mouse.stationIndex = null;
+        continue;
+      }
+      seen[id] = true;
+      mouse.status = 'active';
+      mouse.stationIndex = i;
+      state.stationSlots[i] = id;
+    }
+    var queue = [];
+    (state.queueOrder || []).forEach(function (raw) {
+      var qid = String(raw);
+      var queued = state.miceById[qid];
+      if (!queued || seen[qid] || queue.indexOf(qid) >= 0) return;
+      if (queued.status === 'done' || queued.status === 'missing') {
+        queued.stationIndex = null;
+        return;
+      }
+      queued.status = 'queued';
+      queued.stationIndex = null;
+      queue.push(qid);
+      seen[qid] = true;
+    });
+    Object.keys(state.miceById || {}).forEach(function (id) {
+      if (seen[id]) return;
+      var extra = state.miceById[id];
+      if (!extra || extra.status === 'done' || extra.status === 'missing') {
+        if (extra) extra.stationIndex = null;
+        return;
+      }
+      extra.status = 'queued';
+      extra.stationIndex = null;
+      queue.push(String(id));
+      seen[id] = true;
+    });
+    state.queueOrder = queue;
   }
 
   function pullNextInto(slot) {
