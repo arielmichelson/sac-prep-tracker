@@ -1,0 +1,2611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Sacrifice Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+  :root {
+    --background: #121217;
+    --card-background: #1e1e24;
+    --border: #2d2d38;
+    --text-primary: #e0e0e0;
+    --text-secondary: #707080;
+    --action-green: #2a9d6e;
+    --action-green-deep: #163d30;
+    --action-blue: #3498db;
+    --action-blue-deep: #1a3f5c;
+    --exception-pink: #b04856;
+    --logged: #c4a035;
+    --warn: #b8860b;
+    --warn-deep: #3d2e0a;
+    --expired: #5c2430;
+    --touch: 44px;
+    --radius: 4px;
+    --bg: var(--background);
+    --panel: var(--card-background);
+    --panel-2: #16161c;
+    --text: var(--text-primary);
+    --muted: var(--text-secondary);
+    --line: var(--border);
+    --green: var(--action-green);
+    --green-d: var(--action-green-deep);
+    --red: var(--exception-pink);
+    --red-d: #5c2430;
+    --blue: var(--action-blue);
+    --btn: #2a2a32;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--background);
+    color: var(--text-primary);
+    font-family: Inter, "Segoe UI", Arial, sans-serif;
+    font-size: 13px;
+  }
+
+  button, select, input {
+    font: inherit;
+  }
+
+  .hidden { display: none !important; }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--background);
+    overflow: auto;
+    z-index: 40;
+    padding: 20px 12px;
+  }
+
+  .setup-card {
+    max-width: 680px;
+    margin: 0 auto;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+
+  .setup-card h1 { margin: 0 0 6px; font-size: 20px; font-weight: 700; }
+  .lede { color: var(--text-secondary); margin: 0 0 12px; font-size: 13px; }
+
+  .resume-box {
+    background: #2a2410;
+    border: 1px solid var(--warn);
+    color: #e8e0c8;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+  }
+
+  .resume-box .row {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+
+  .file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 55vh;
+    overflow: auto;
+  }
+
+  .file-btn {
+    min-height: var(--touch);
+    text-align: left;
+    background: var(--panel-2);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    cursor: pointer;
+  }
+
+  .file-btn:hover, .file-btn:focus { border-color: var(--action-blue); }
+
+  .file-btn small {
+    display: block;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    font-size: 11px;
+  }
+
+  .status-line {
+    color: var(--text-secondary);
+    margin: 0;
+    min-height: 1em;
+    font-size: 11px;
+  }
+
+  .app {
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 32px 1fr 38px;
+  }
+
+  .topbar, .footbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px;
+    background: #16161c;
+    border-color: var(--border);
+  }
+
+  .topbar {
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .topbar-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .topbar-title {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .topbar-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    opacity: 0.85;
+    white-space: nowrap;
+  }
+
+  .progress {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    letter-spacing: -0.02em;
+  }
+
+  .progress span {
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 11px;
+  }
+
+  .footbar {
+    justify-content: space-between;
+    border-top: 1px solid var(--border);
+  }
+
+  .foot-subdued {
+    display: flex;
+    gap: 4px;
+  }
+
+  .muted { color: var(--text-secondary); font-size: 12px; }
+
+  .board {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 2.5fr minmax(180px, 0.9fr);
+    gap: 4px;
+    padding: 4px;
+    min-height: 0;
+  }
+
+  .col {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .col h2 {
+    margin: 0;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ice-list, .queue-list, .stations {
+    overflow: auto;
+    padding: 4px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .stations {
+    display: grid;
+    gap: 4px;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  .stations.n-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stations.n-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .stations.n-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+  .board.no-blood {
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 0.72fr);
+  }
+
+  .board.no-blood .ice-col { display: none; }
+
+  .station-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .station-student {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .station-student .label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+
+  .station-student select {
+    flex: 1;
+    min-height: 32px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #121217;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .station-setup { margin-top: 12px; }
+  .setup-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .count-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  .count-btn {
+    min-width: 44px;
+    min-height: 40px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #1a1a20;
+    color: var(--text-primary);
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .count-btn.is-on {
+    background: var(--action-blue);
+    border-color: var(--action-blue);
+    color: #fff;
+  }
+  .assign-list { display: grid; gap: 6px; margin-bottom: 10px; }
+
+  .ice-card {
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 0 8px;
+    padding: 8px;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+  }
+
+  .ice-id {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .ice-no {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .ice-tag {
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0.6;
+    letter-spacing: 0.04em;
+  }
+
+  .ice-card .time {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 28px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .ice-dismiss {
+    grid-column: 1;
+    margin-top: 6px;
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: rgba(0, 0, 0, 0.28);
+    color: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius);
+    cursor: pointer;
+    width: max-content;
+  }
+
+  .ice-card.ok { background: #1a4a3a; }
+  .ice-card.warn { background: var(--warn-deep); color: #f0d78c; }
+  .ice-card.expired {
+    background: var(--expired);
+    animation: iceflash 1s linear infinite;
+  }
+
+  @keyframes iceflash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.62; }
+  }
+
+  .queue-list { padding: 2px 4px; }
+
+  .queue-item {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: baseline;
+    gap: 6px;
+    width: 100%;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    margin: 0;
+    cursor: pointer;
+    min-height: 36px;
+    text-align: left;
+    padding: 4px 4px;
+    border-radius: 0;
+    color: var(--text-primary);
+  }
+
+  .queue-item:hover, .queue-item:focus { background: #25252c; }
+
+  .queue-no {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  .queue-tag {
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0.6;
+  }
+
+  .queue-meta {
+    font-size: 10px;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    justify-self: end;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .station-empty {
+    border: 1px dashed var(--border);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 100%;
+    background: #18181e;
+    padding: 8px;
+    border-radius: var(--radius);
+    font-size: 12px;
+  }
+
+  .station-card {
+    background: #18181e;
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    overflow: auto;
+    padding: 8px;
+    border-radius: var(--radius);
+  }
+
+  .station-id {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .station-id-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .station-no {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: clamp(28px, 3.6vw, 40px);
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    line-height: 0.9;
+    color: #fff;
+  }
+
+  .station-sex {
+    font-size: 12px;
+    font-weight: 500;
+    opacity: 0.6;
+    margin-top: 6px;
+    letter-spacing: 0.04em;
+  }
+
+  .station-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 6px;
+  }
+
+  .station-facts .label,
+  .anatomy h3,
+  .station-pyrat .label {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    opacity: 0.6;
+    line-height: 1.2;
+    margin-bottom: 1px;
+  }
+
+  .station-facts .value {
+    display: block;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .station-badges {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .station-pyrat .value {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .geno-label {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.55;
+    color: var(--text-secondary);
+  }
+
+  .station-times {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+
+  .station-times.times-one { grid-template-columns: 1fr; }
+
+  .btn-sac, .btn-blood, .stamp {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  .stamp {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    cursor: default;
+    gap: 1px;
+  }
+
+  .stamp .stamp-label {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+
+  .stamp .stamp-time {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .stamp:hover, .stamp:focus { filter: none; outline: none; }
+
+  .stamp-sac,
+  .stamp-sac:hover,
+  .stamp-sac:focus { background: #102820; color: #8ee0b8; }
+
+  .stamp-blood,
+  .stamp-blood:hover,
+  .stamp-blood:focus { background: #102a3d; color: #8ec8ee; }
+
+  .anatomy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .anatomy h3 { margin: 0; }
+
+  .actions, .modal-actions, .chip-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .chip-grid {
+    gap: 3px;
+  }
+
+  .chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 4px 8px;
+    border: 1px solid #3a3a46;
+    border-radius: var(--radius);
+    background: #16161c;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0.85;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .chip-name { opacity: 0.7; font-weight: 500; }
+  .chip.is-selected {
+    opacity: 1;
+    color: var(--text-primary);
+    outline: 1px solid #e0e0e0;
+    outline-offset: 1px;
+  }
+  .chip.is-selected .chip-name { opacity: 1; }
+  .chip .dots { display: inline-flex; gap: 3px; }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .dot-missing { background: var(--exception-pink); }
+  .dot-path { background: var(--action-blue); }
+  .dot-swap { background: #c4a035; }
+  .chip.is-missing { box-shadow: inset 3px 0 0 var(--exception-pink); }
+  .chip.is-path { box-shadow: inset 3px 0 0 var(--action-blue); }
+  .chip.is-swap { box-shadow: inset 3px 0 0 #c4a035; }
+  .chip.is-missing.is-path,
+  .chip.is-missing.is-swap,
+  .chip.is-path.is-swap {
+    box-shadow: none;
+  }
+
+  .station-tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+
+  .btn {
+    min-height: var(--touch);
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--btn);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .btn:disabled {
+    opacity: 1;
+    cursor: not-allowed;
+  }
+
+  .btn-primary { background: var(--action-blue); color: #fff; }
+  .btn-danger { background: var(--exception-pink); color: #fff; }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    min-height: 28px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .btn-sm { min-height: 28px; width: auto; }
+
+  .btn.btn-sac {
+    background: var(--action-green);
+    color: #06150f;
+    min-height: 48px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  .btn.btn-blood {
+    background: var(--action-blue);
+    color: #fff;
+    min-height: 48px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  .btn.btn-blood:disabled,
+  .btn.btn-blood.is-locked {
+    background: #2a2a32;
+    color: #5a5a68;
+    cursor: not-allowed;
+  }
+  .btn.btn-tool {
+    min-height: 34px;
+    padding: 0 8px;
+    background: #25252c;
+    border: 1px solid var(--border);
+    color: #c8c8d0;
+    font-size: 11px;
+    font-weight: 600;
+    width: 100%;
+    border-radius: var(--radius);
+  }
+  .btn.btn-tool:hover, .btn.btn-tool:focus {
+    background: #2e2e38;
+    color: #fff;
+  }
+  .btn.btn-tool:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    background: #1a1a20;
+    color: #5c5c68;
+  }
+  .btn.btn-missing {
+    align-self: flex-start;
+    min-height: 28px;
+    padding: 0 10px;
+    background: transparent;
+    border: 1px solid var(--exception-pink);
+    color: #d08993;
+    font-size: 11px;
+    font-weight: 600;
+    width: auto;
+    border-radius: var(--radius);
+  }
+  .btn.btn-missing:hover, .btn.btn-missing:focus {
+    background: rgba(176, 72, 86, 0.18);
+    color: #f0c4ca;
+  }
+  .btn.btn-next {
+    width: 100%;
+    min-height: 40px;
+    border-radius: var(--radius);
+    font-size: 13px;
+  }
+
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.62);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 12px;
+  }
+
+  .modal-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    width: min(460px, 100%);
+    max-height: 90vh;
+    overflow: auto;
+  }
+
+  .modal-card h3 { margin: 0 0 10px; font-size: 15px; }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .field select, .field input {
+    min-height: var(--touch);
+    background: #16161c;
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0 8px;
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--touch);
+  }
+
+  .check input { width: 20px; height: 20px; }
+
+  .weight-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .weight-field {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 36px;
+  }
+
+  .weight-field .label {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.6;
+    letter-spacing: 0.02em;
+  }
+
+  .weight-field input {
+    width: 72px;
+    min-height: 36px;
+    padding: 0 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #121217;
+    color: #fff;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: right;
+  }
+
+  .weight-field .unit {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .weight-field.is-invalid input { border-color: var(--exception-pink); }
+  .weight-field.is-warn input { border-color: #c4a035; }
+
+  .mouse-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mouse-notes .label {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.6;
+  }
+
+  .mouse-notes textarea {
+    width: 100%;
+    min-height: 36px;
+    max-height: 72px;
+    resize: vertical;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #121217;
+    color: var(--text-primary);
+    font: 12px/1.3 Inter, "Segoe UI", sans-serif;
+  }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+
+  .tag-btn {
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #25252c;
+    color: var(--text-primary);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .tag-btn.is-on {
+    background: var(--action-blue);
+    border-color: var(--action-blue);
+    color: #fff;
+  }
+
+  .complete {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(18, 18, 23, 0.96);
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 16px;
+    overflow: auto;
+  }
+
+  .complete-card {
+    width: min(960px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .complete-card h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .complete-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .metric {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .metric .label {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .metric .value {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: clamp(22px, 3vw, 36px);
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .complete-ice h3 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .sync-badge {
+    align-self: flex-start;
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .sync-badge.is-ok {
+    color: #8ee0b8;
+    border-color: var(--action-green);
+  }
+
+  .sync-badge.is-bad {
+    color: #e7b7bd;
+    border-color: var(--exception-pink);
+  }
+
+  .complete-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .complete-actions .btn-primary { min-height: 44px; padding: 0 16px; }
+  .complete-actions .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  @media (max-width: 800px) {
+    .complete-metrics { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+
+</head>
+<body>
+  <div id="setup" class="overlay">
+    <div class="setup-card">
+      <h1>Sacrifice Tracker</h1>
+      <div id="resumeBox" class="resume-box hidden"></div>
+      <div id="fileStatus" class="status-line">Loading files…</div>
+      <div id="fileList" class="file-list"></div>
+      <div id="stationSetup" class="station-setup hidden">
+        <p id="stationSetupFile" class="lede"></p>
+        <div class="setup-label">Stations in parallel</div>
+        <div id="stationCountBtns" class="count-row"></div>
+        <div id="stationAssign" class="assign-list"></div>
+        <div class="row">
+          <button type="button" id="btnStartStations" class="btn btn-primary" disabled>Start session</button>
+          <button type="button" id="btnSetupBack" class="btn btn-ghost">Back</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <div class="topbar-line">
+        <span id="expTitle" class="topbar-title">Session</span>
+        <span id="expMeta" class="topbar-sub"></span>
+      </div>
+      <div id="progressLabel" class="progress">0 / 0 done</div>
+    </header>
+
+    <main id="board" class="board">
+      <section class="col ice-col" aria-label="Ice timers">
+        <h2>Ice timers</h2>
+        <div id="iceList" class="ice-list"></div>
+      </section>
+
+      <section class="col stations-col" aria-label="Dissection stations">
+        <h2>Active stations</h2>
+        <div id="stations" class="stations"></div>
+      </section>
+
+      <section class="col queue-col" aria-label="Upcoming mice">
+        <h2>Upcoming</h2>
+        <div id="queueList" class="queue-list"></div>
+      </section>
+    </main>
+
+    <footer class="footbar">
+      <div class="foot-subdued">
+        <button type="button" id="btnDownloadJson" class="btn btn-ghost">Download JSON</button>
+        <button type="button" id="btnNewSession" class="btn btn-ghost">New session</button>
+      </div>
+      <span id="syncStatus" class="status-line"></span>
+      <button type="button" id="btnSync" class="btn btn-primary">Sync &amp; Export Session</button>
+    </footer>
+  </div>
+
+  <div id="completeScreen" class="complete hidden" aria-hidden="true">
+    <div class="complete-card">
+      <h2>Session completed</h2>
+      <div id="completeMetrics" class="complete-metrics"></div>
+      <section class="complete-ice" aria-label="Ice timers">
+        <h3>Ice timers</h3>
+        <div id="completeIce" class="ice-list"></div>
+      </section>
+      <div id="completeSync" class="sync-badge">Local session saved · Cloud sync pending</div>
+      <div class="complete-actions">
+        <button type="button" id="btnViewSheet" class="btn btn-primary" data-action="view-sheet" disabled>View synced spreadsheet</button>
+        <button type="button" id="btnCompleteJson" class="btn btn-ghost">Download JSON backup</button>
+        <button type="button" id="btnCompleteNew" class="btn btn-ghost">Start new session</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalRoot" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-card">
+      <h3 id="modalTitle">Modal</h3>
+      <div id="modalBody"></div>
+      <div class="modal-actions">
+        <button type="button" id="modalCancel" class="btn">Cancel</button>
+        <button type="button" id="modalSave" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>(function(){var p=new URLSearchParams(location.search);var ctx={spreadsheetId:p.get("spreadsheetId")||"",folderId:p.get("folderId")||"",execUrl:"https://script.google.com/macros/s/AKfycbxxFL6L2P5q_FaFvW5n0sB6eTsZ7AYH-jNn_SNHbsKhpZlz8LvseeLEz--hse3u_8xmEg/exec"};window.PIPELINE_CONTEXT=ctx;window.PIPELINE_EXEC_URL=ctx.execUrl;})();</script>
+<script>
+(function () {
+  var pipeline = window.PIPELINE_CONTEXT || { spreadsheetId: '', folderId: '' };
+  var STORAGE_KEY = pipeline.spreadsheetId
+    ? ('dissectionTracker.v1:' + pipeline.spreadsheetId)
+    : '';
+  var ICE_MS = 30 * 60 * 1000;
+  var ORANGE_MS = 5 * 60 * 1000;
+  var STATION_MIN = 2;
+  var STATION_MAX = 4;
+  var NOTES_DEBOUNCE_MS = 400;
+  var PATHOLOGY_TAGS = ['Tumor', 'Enlarged', 'Pale', 'Cystic'];
+  var BRAIN_PARTS = ['Hypothalamus', 'Hippocampus', 'Cerebellum', 'Rest brain', 'Whole brain'];
+
+  var state = null;
+  var pendingSource = null;
+  var setupCount = 2;
+  var setupStudents = [];
+  var sessionActive = false;
+  var wantWakeLock = false;
+  var wakeLockSentinel = null;
+  var audioCtx = null;
+  var tickTimer = null;
+  var pendingBeep = false;
+  var modalContext = null;
+  var notesTimer = null;
+  var syncing = false;
+  var completionSyncFired = false;
+
+  var el = {
+    setup: document.getElementById('setup'),
+    app: document.getElementById('app'),
+    resumeBox: document.getElementById('resumeBox'),
+    fileStatus: document.getElementById('fileStatus'),
+    fileList: document.getElementById('fileList'),
+    stationSetup: document.getElementById('stationSetup'),
+    stationSetupFile: document.getElementById('stationSetupFile'),
+    stationCountBtns: document.getElementById('stationCountBtns'),
+    stationAssign: document.getElementById('stationAssign'),
+    btnStartStations: document.getElementById('btnStartStations'),
+    btnSetupBack: document.getElementById('btnSetupBack'),
+    board: document.getElementById('board'),
+    expTitle: document.getElementById('expTitle'),
+    expMeta: document.getElementById('expMeta'),
+    progressLabel: document.getElementById('progressLabel'),
+    iceList: document.getElementById('iceList'),
+    stations: document.getElementById('stations'),
+    queueList: document.getElementById('queueList'),
+    syncStatus: document.getElementById('syncStatus'),
+    btnSync: document.getElementById('btnSync'),
+    btnDownloadJson: document.getElementById('btnDownloadJson'),
+    btnNewSession: document.getElementById('btnNewSession'),
+    completeScreen: document.getElementById('completeScreen'),
+    completeMetrics: document.getElementById('completeMetrics'),
+    completeIce: document.getElementById('completeIce'),
+    completeSync: document.getElementById('completeSync'),
+    btnViewSheet: document.getElementById('btnViewSheet'),
+    btnCompleteJson: document.getElementById('btnCompleteJson'),
+    btnCompleteNew: document.getElementById('btnCompleteNew'),
+    modalRoot: document.getElementById('modalRoot'),
+    modalTitle: document.getElementById('modalTitle'),
+    modalBody: document.getElementById('modalBody'),
+    modalCancel: document.getElementById('modalCancel'),
+    modalSave: document.getElementById('modalSave')
+  };
+
+  function init() {
+    bindChrome();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    if (pipeline.spreadsheetId && el.btnSetupBack) {
+      el.btnSetupBack.classList.add('hidden');
+    }
+    if (!pipeline.spreadsheetId) {
+      showMissingContext();
+      return;
+    }
+    showSavedResume();
+    pickFile(pipeline.spreadsheetId);
+  }
+
+  function bindChrome() {
+    el.btnSync.addEventListener('click', function () { onSync(); });
+    el.btnDownloadJson.addEventListener('click', downloadJsonBackup);
+    el.btnNewSession.addEventListener('click', confirmNewSession);
+    if (el.btnCompleteJson) el.btnCompleteJson.addEventListener('click', downloadJsonBackup);
+    if (el.btnCompleteNew) el.btnCompleteNew.addEventListener('click', confirmNewSession);
+    el.modalCancel.addEventListener('click', closeModal);
+    el.modalSave.addEventListener('click', saveModal);
+    el.modalRoot.addEventListener('click', function (event) {
+      if (event.target === el.modalRoot) closeModal();
+    });
+    if (el.btnStartStations) el.btnStartStations.addEventListener('click', confirmStationSetup);
+    if (el.btnSetupBack) el.btnSetupBack.addEventListener('click', hideStationSetup);
+    el.app.addEventListener('click', onAppClick);
+    if (el.completeScreen) el.completeScreen.addEventListener('click', onAppClick);
+  }
+
+  function confirmNewSession() {
+    var message = pipeline.spreadsheetId
+      ? 'Clear this session from the computer and reload this experiment?'
+      : 'Clear this session from the computer?';
+    if (!confirm(message)) return;
+    endSession(true);
+  }
+
+  function gasRun(name, arg) {
+    var execUrl = String((pipeline && pipeline.execUrl) || window.PIPELINE_EXEC_URL || '').trim();
+    if (execUrl) {
+      return fetch(execUrl, {
+        method: 'POST',
+        redirect: 'follow',
+        credentials: 'omit',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: name, payload: arguments.length > 1 ? arg : {} })
+      }).then(function (response) {
+        return response.text();
+      }).then(function (text) {
+        var body;
+        try {
+          body = JSON.parse(text);
+        } catch (error) {
+          throw new Error('The lab service did not return JSON.');
+        }
+        if (!body || !body.ok) throw new Error((body && body.error) || 'Request failed');
+        return body.data;
+      });
+    }
+    var runner = window.google && google.script && google.script.run;
+    if (runner && runner.withSuccessHandler) {
+      return new Promise(function (resolve, reject) {
+        var call = runner.withSuccessHandler(resolve).withFailureHandler(reject);
+        if (arguments.length > 1) call[name](arg);
+        else call[name]();
+      });
+    }
+    return Promise.reject(new Error('Apps Script is not available'));
+  }
+
+  function readSaved() {
+    if (!STORAGE_KEY) return null;
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || !parsed.source || !parsed.miceById) return null;
+      return parsed;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function persist() {
+    if (!state || !STORAGE_KEY) return;
+    state.updatedAt = Date.now();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function showSavedResume() {
+    var saved = readSaved();
+    if (!saved) {
+      el.resumeBox.classList.add('hidden');
+      el.resumeBox.innerHTML = '';
+      return;
+    }
+    var name = (saved.source && saved.source.fileName) || 'Unfinished session';
+    el.resumeBox.classList.remove('hidden');
+    el.resumeBox.innerHTML =
+      '<div><strong>Unfinished session</strong><div class="muted">' + escapeHtml(name) + '</div></div>' +
+      '<div class="row">' +
+      '<button type="button" class="btn btn-primary" id="btnResume">Resume</button>' +
+      '<button type="button" class="btn btn-danger" id="btnDiscard">Discard</button>' +
+      '</div>';
+    document.getElementById('btnResume').addEventListener('click', function () {
+      startSession(saved);
+    });
+    document.getElementById('btnDiscard').addEventListener('click', function () {
+      if (!confirm('Discard the cached session on this computer?')) return;
+      if (STORAGE_KEY) localStorage.removeItem(STORAGE_KEY);
+      showSavedResume();
+    });
+  }
+
+  function showMissingContext() {
+    if (el.fileList) el.fileList.innerHTML = '';
+    if (el.resumeBox) el.resumeBox.classList.add('hidden');
+    if (el.stationSetup) el.stationSetup.classList.add('hidden');
+    if (el.fileStatus) {
+      el.fileStatus.textContent = 'Open Sacrifice Tracker from the link at the top of the experiment spreadsheet.';
+    }
+  }
+
+  function loadFileList() {
+    el.fileStatus.textContent = 'Loading files…';
+    el.fileList.innerHTML = '';
+    gasRun('listPlanningFiles').then(function (files) {
+      renderFileList(files || []);
+    }).catch(function (error) {
+      el.fileStatus.textContent = error && error.message
+        ? error.message
+        : 'Could not list planning files. Check the network, then retry.';
+    });
+  }
+
+  function renderFileList(files) {
+    if (!files.length) {
+      el.fileStatus.textContent = 'No EXP_ planning sheets found in the folder.';
+      return;
+    }
+    el.fileStatus.textContent = 'Select a planning sheet:';
+    el.fileList.innerHTML = files.map(function (file) {
+      var when = formatDateTime(file.lastUpdated);
+      return '<button type="button" class="file-btn" data-file-id="' + escapeHtml(file.id) + '">' +
+        '<strong>' + escapeHtml(file.name) + '</strong>' +
+        '<small>' + escapeHtml(when) + '</small></button>';
+    }).join('');
+    el.fileList.querySelectorAll('[data-file-id]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        pickFile(btn.getAttribute('data-file-id'));
+      });
+    });
+  }
+
+  function pickFile(fileId) {
+    el.fileStatus.textContent = 'Loading mice…';
+    gasRun('loadPlanningSheet', fileId).then(function (source) {
+      pendingSource = source;
+      setupCount = STATION_MIN;
+      setupStudents = [];
+      renderStationSetup();
+    }).catch(function (error) {
+      el.fileStatus.textContent = error && error.message ? error.message : 'Failed to load sheet.';
+    });
+  }
+
+  function hideStationSetup() {
+    pendingSource = null;
+    if (el.stationSetup) el.stationSetup.classList.add('hidden');
+    if (el.fileList) el.fileList.classList.remove('hidden');
+    if (el.fileStatus) el.fileStatus.classList.remove('hidden');
+  }
+
+  function renderStationSetup() {
+    if (!pendingSource || !el.stationSetup) return;
+    el.fileList.classList.add('hidden');
+    el.fileStatus.classList.add('hidden');
+    el.stationSetup.classList.remove('hidden');
+    el.stationSetupFile.textContent = pendingSource.fileName || 'Planning sheet';
+    var counts = '';
+    for (var n = STATION_MIN; n <= STATION_MAX; n++) {
+      counts += '<button type="button" class="count-btn' + (n === setupCount ? ' is-on' : '') +
+        '" data-count="' + n + '">' + n + '</button>';
+    }
+    el.stationCountBtns.innerHTML = counts;
+    el.stationCountBtns.querySelectorAll('[data-count]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setupCount = Number(btn.getAttribute('data-count'));
+        renderStationSetup();
+      });
+    });
+    var students = pendingSource.students || [];
+    var fields = '';
+    for (var i = 0; i < setupCount; i++) {
+      var selected = setupStudents[i] || '';
+      var options = '<option value="">Select student</option>' + students.map(function (name) {
+        return '<option value="' + escapeHtml(name) + '"' + (name === selected ? ' selected' : '') + '>' +
+          escapeHtml(name) + '</option>';
+      }).join('');
+      fields += '<label class="field">Station ' + (i + 1) +
+        '<select data-setup-slot="' + i + '">' + options + '</select></label>';
+    }
+    el.stationAssign.innerHTML = fields;
+    el.stationAssign.querySelectorAll('[data-setup-slot]').forEach(function (select) {
+      select.addEventListener('change', function () {
+        setupStudents[Number(select.getAttribute('data-setup-slot'))] = select.value;
+        refreshStartButton();
+      });
+    });
+    refreshStartButton();
+  }
+
+  function refreshStartButton() {
+    if (!el.btnStartStations) return;
+    var ready = true;
+    for (var i = 0; i < setupCount; i++) {
+      if (!setupStudents[i]) ready = false;
+    }
+    el.btnStartStations.disabled = !ready;
+  }
+
+  function confirmStationSetup() {
+    if (!pendingSource) return;
+    var names = [];
+    for (var i = 0; i < setupCount; i++) {
+      if (!setupStudents[i]) return;
+      names.push(setupStudents[i]);
+    }
+    var source = pendingSource;
+    pendingSource = null;
+    hideStationSetup();
+    startSession(createState(source, setupCount, names));
+  }
+
+  function createState(source, stationCount, stationStudents) {
+    stationCount = stationCount || STATION_MIN;
+    stationStudents = stationStudents || [];
+    var miceById = {};
+    var queueOrder = [];
+    var chips = source.chips || [];
+    var fields = source.weightFields || [];
+    (source.mice || []).forEach(function (raw) {
+      var id = String(raw.mouseNo || raw.id);
+      var organs = {};
+      chips.forEach(function (chip) {
+        organs[chip] = { missing: false, pfa: false };
+      });
+      var weights = {};
+      fields.forEach(function (field) {
+        var seeded = raw.weights && raw.weights[field.key] != null ? String(raw.weights[field.key]) : '';
+        weights[field.key] = seeded;
+      });
+      miceById[id] = {
+        id: id,
+        mouseNo: id,
+        pyrat: raw.pyrat || '',
+        tag: raw.tag || '',
+        sex: raw.sex || '',
+        genotype: raw.genotype || '',
+        cage: raw.cage || '',
+        age: raw.age || '',
+        treatment: raw.treatment || '',
+        sheetRow: raw.sheetRow || null,
+        cells: raw.cells || {},
+        weights: weights,
+        status: 'queued',
+        sacTime: '',
+        bloodTime: '',
+        selectedOrgans: [],
+        organs: organs,
+        pathology: [],
+        internalSwaps: [],
+        crossSwaps: [],
+        generalNotes: '',
+        notes: '',
+        student: ''
+      };
+      queueOrder.push(id);
+    });
+    var slots = [];
+    var names = [];
+    for (var s = 0; s < stationCount; s++) {
+      slots.push(null);
+      names.push(stationStudents[s] || '');
+    }
+    return {
+      source: source,
+      miceById: miceById,
+      stationCount: stationCount,
+      stationStudents: names,
+      stationSlots: slots,
+      iceTimers: [],
+      queueOrder: queueOrder,
+      exported: false,
+      startedAtMs: Date.now(),
+      completedAtMs: null,
+      exportFileId: '',
+      exportUrl: '',
+      exportFileName: '',
+      lastSyncOk: null,
+      updatedAt: Date.now()
+    };
+  }
+
+  function hydrateState(nextState) {
+    if (!nextState.startedAtMs) nextState.startedAtMs = Date.now();
+    if (!nextState.exportFileId) nextState.exportFileId = '';
+    if (!nextState.exportUrl) nextState.exportUrl = '';
+    if (!nextState.exportFileName) nextState.exportFileName = '';
+    if (typeof nextState.lastSyncOk === 'undefined') nextState.lastSyncOk = null;
+    var count = Number(nextState.stationCount) || (nextState.stationSlots || []).length || STATION_MIN;
+    if (count < STATION_MIN) count = STATION_MIN;
+    if (count > STATION_MAX) count = STATION_MAX;
+    nextState.stationCount = count;
+    if (!Array.isArray(nextState.stationStudents)) nextState.stationStudents = [];
+    if (!Array.isArray(nextState.stationSlots)) nextState.stationSlots = [];
+    while (nextState.stationStudents.length < count) nextState.stationStudents.push('');
+    while (nextState.stationSlots.length < count) nextState.stationSlots.push(null);
+    nextState.stationStudents = nextState.stationStudents.slice(0, count);
+    nextState.stationSlots = nextState.stationSlots.slice(0, count);
+    var fields = (nextState.source && nextState.source.weightFields) || [];
+    Object.keys(nextState.miceById || {}).forEach(function (id) {
+      normalizeMouse(nextState.miceById[id], fields);
+    });
+    return nextState;
+  }
+
+  function normalizeMouse(mouse, fields) {
+    if (!mouse.organs) mouse.organs = {};
+    Object.keys(mouse.organs).forEach(function (name) {
+      mouse.organs[name] = readOrgan(mouse, name);
+    });
+    mouse.pathology = (mouse.pathology || []).map(function (item) {
+      if (item && Array.isArray(item.tags)) {
+        return {
+          organ: item.organ,
+          tags: item.tags.slice(),
+          text: item.text || '',
+          pfa: !!item.pfa
+        };
+      }
+      return {
+        organ: item && item.organ,
+        tags: item && item.type ? [item.type] : [],
+        text: (item && item.text) || '',
+        pfa: !!(item && item.pfa)
+      };
+    });
+    if (!Array.isArray(mouse.selectedOrgans)) mouse.selectedOrgans = [];
+    if (!mouse.weights || typeof mouse.weights !== 'object') mouse.weights = {};
+    fields.forEach(function (field) {
+      if (mouse.weights[field.key] == null) mouse.weights[field.key] = '';
+    });
+    if (mouse.generalNotes == null) mouse.generalNotes = '';
+    if (!mouse.cells) mouse.cells = {};
+    if (!Array.isArray(mouse.internalSwaps)) mouse.internalSwaps = [];
+    if (!Array.isArray(mouse.crossSwaps)) mouse.crossSwaps = [];
+    if (mouse.sheetRow == null) mouse.sheetRow = null;
+    if (mouse.student == null) mouse.student = '';
+  }
+
+  function hasBloodColumn() {
+    return !!(state && state.source && state.source.hasBloodColumn);
+  }
+
+  function stationCount() {
+    return state && state.stationCount ? state.stationCount : STATION_MIN;
+  }
+
+  function startSession(nextState) {
+    unlockAudio();
+    completionSyncFired = false;
+    state = hydrateState(nextState);
+    sessionActive = true;
+    persist();
+    el.setup.classList.add('hidden');
+    el.app.classList.remove('hidden');
+    startWakeLock();
+    startTicks();
+    renderAll();
+    tickIce(true);
+  }
+
+  function endSession(clearStorage) {
+    sessionActive = false;
+    completionSyncFired = false;
+    stopTicks();
+    stopWakeLock();
+    if (clearStorage && STORAGE_KEY) localStorage.removeItem(STORAGE_KEY);
+    state = null;
+    el.app.classList.add('hidden');
+    el.setup.classList.remove('hidden');
+    if (el.completeScreen) {
+      el.completeScreen.classList.add('hidden');
+      el.completeScreen.setAttribute('aria-hidden', 'true');
+    }
+    el.syncStatus.textContent = '';
+    if (!pipeline.spreadsheetId) {
+      showMissingContext();
+      return;
+    }
+    showSavedResume();
+    pickFile(pipeline.spreadsheetId);
+  }
+
+  function mouseById(id) {
+    return state && state.miceById ? state.miceById[String(id)] : null;
+  }
+
+  function allMice() {
+    if (!state) return [];
+    return Object.keys(state.miceById).map(function (id) { return state.miceById[id]; });
+  }
+
+  function isTerminal(mouse) {
+    return !!(mouse && (mouse.status === 'done' || mouse.status === 'missing'));
+  }
+
+  function sessionComplete() {
+    var mice = allMice();
+    return mice.length > 0 && mice.every(isTerminal);
+  }
+
+  function renderAll() {
+    if (!state) return;
+    var meta = (state.source && state.source.meta) || {};
+    el.expTitle.textContent = meta['Experiment / Protocol'] || state.source.fileName || 'Session';
+    var bits = [];
+    if (meta.Researcher) bits.push(meta.Researcher);
+    if (meta['Sacrifice date']) bits.push(meta['Sacrifice date']);
+    el.expMeta.textContent = bits.join(' · ');
+    var done = allMice().filter(isTerminal).length;
+    el.progressLabel.innerHTML = done + '<span> / ' + allMice().length + ' done</span>';
+    if (el.board) el.board.classList.toggle('no-blood', !hasBloodColumn());
+    renderIce();
+    renderStations();
+    renderQueue();
+    renderComplete();
+    if (sessionComplete() && !completionSyncFired) {
+      if (!state.completedAtMs) state.completedAtMs = Date.now();
+      completionSyncFired = true;
+      persist();
+      renderComplete();
+      onSync({ auto: true });
+    }
+  }
+
+  function remainingMs(timer) {
+    return ICE_MS - (Date.now() - Number(timer.startedAtMs || 0));
+  }
+
+  function formatCountdown(ms) {
+    var left = Math.max(0, ms);
+    var totalSec = Math.floor(left / 1000);
+    var min = Math.floor(totalSec / 60);
+    var sec = totalSec % 60;
+    return String(min) + ':' + String(sec).padStart(2, '0');
+  }
+
+  function iceClass(ms) {
+    if (ms <= 0) return 'expired';
+    if (ms <= ORANGE_MS) return 'warn';
+    return 'ok';
+  }
+
+  function iceMarkup() {
+    var timers = (state.iceTimers || []).filter(function (timer) { return !timer.dismissed; });
+    if (!timers.length) return '<div class="muted">No blood on the bench.</div>';
+    return timers.map(function (timer) {
+      var mouse = mouseById(timer.mouseId);
+      var ms = remainingMs(timer);
+      var no = mouse ? String(mouse.mouseNo) : timer.mouseId;
+      var tag = mouse && mouse.tag ? mouse.tag : '';
+      return '<article class="ice-card ' + iceClass(ms) + '">' +
+        '<div class="ice-id"><span class="ice-no">#' + escapeHtml(no) + '</span>' +
+        (tag ? '<span class="ice-tag">' + escapeHtml(tag) + '</span>' : '') + '</div>' +
+        '<div class="time">' + formatCountdown(ms) + '</div>' +
+        '<button type="button" class="ice-dismiss" data-action="ice-dismiss" data-mouse-id="' +
+        escapeHtml(timer.mouseId) + '">Moved to Ice</button></article>';
+    }).join('');
+  }
+
+  function renderIce() {
+    if (!state) return;
+    var html = iceMarkup();
+    if (el.iceList) el.iceList.innerHTML = html;
+    if (el.completeIce && el.completeScreen && !el.completeScreen.classList.contains('hidden')) {
+      el.completeIce.innerHTML = html;
+    }
+  }
+
+  function renderQueue() {
+    var ids = state.queueOrder || [];
+    if (!ids.length) {
+      el.queueList.innerHTML = '<div class="muted">Queue empty.</div>';
+      return;
+    }
+    el.queueList.innerHTML = ids.map(function (id) {
+      var mouse = mouseById(id);
+      if (!mouse) return '';
+      return '<button type="button" class="queue-item" data-action="queue-select" data-mouse-id="' +
+        escapeHtml(id) + '"><span class="queue-no">#' + escapeHtml(mouse.mouseNo) + '</span>' +
+        '<span class="queue-tag">' + escapeHtml(mouse.tag || '') + '</span>' +
+        '<span class="queue-meta">' + escapeHtml(mouse.pyrat || '') +
+        (mouse.genotype ? ' · ' + escapeHtml(mouse.genotype) : '') +
+        '</span></button>';
+    }).join('');
+  }
+
+  function renderStations() {
+    el.stations.className = 'stations n-' + stationCount();
+    var html = '';
+    for (var i = 0; i < stationCount(); i++) {
+      var id = state.stationSlots[i];
+      var assign = studentSelectHtml(i);
+      if (!id || !mouseById(id)) {
+        html += '<div class="station-slot">' + assign +
+          '<div class="station-empty">Tap a mouse from the queue</div></div>';
+        continue;
+      }
+      html += '<div class="station-slot">' + assign + stationCardHtml(mouseById(id), i) + '</div>';
+    }
+    el.stations.innerHTML = html;
+    bindStationInputs();
+  }
+
+  function namesForChip(name) {
+    if (name === 'Brain') return ['Brain'].concat(BRAIN_PARTS);
+    return [name];
+  }
+
+  function readOrgan(mouse, name) {
+    var value = mouse && mouse.organs ? mouse.organs[name] : null;
+    if (!value) return { missing: false, pfa: false };
+    if (typeof value !== 'object') {
+      return { missing: value === 'missing', pfa: value === 'pfa' };
+    }
+    return { missing: !!value.missing, pfa: !!value.pfa };
+  }
+
+  function ensureOrgan(mouse, name) {
+    if (!mouse.organs) mouse.organs = {};
+    var current = readOrgan(mouse, name);
+    mouse.organs[name] = current;
+    return current;
+  }
+
+  function chipVisual(mouse, name) {
+    var names = namesForChip(name);
+    var missing = false;
+    var path = false;
+    var swap = false;
+    names.forEach(function (organName) {
+      var organ = readOrgan(mouse, organName);
+      if (organ.missing) missing = true;
+      if (organ.pfa) path = true;
+      (mouse.pathology || []).forEach(function (item) {
+        if (item.organ !== organName) return;
+        path = true;
+      });
+      (mouse.internalSwaps || []).forEach(function (swapItem) {
+        if (swapItem.a === organName || swapItem.b === organName) swap = true;
+      });
+      (mouse.crossSwaps || []).forEach(function (swapItem) {
+        if (swapItem.tissue === organName) swap = true;
+      });
+    });
+    return {
+      missing: missing,
+      path: path,
+      swap: swap,
+      selected: (mouse.selectedOrgans || []).indexOf(name) >= 0
+    };
+  }
+
+  function stationCardHtml(mouse, slot) {
+    var chips = ((state.source && state.source.chips) || []).map(function (name) {
+      var vis = chipVisual(mouse, name);
+      var cls = 'chip';
+      if (vis.selected) cls += ' is-selected';
+      if (vis.missing) cls += ' is-missing';
+      if (vis.path) cls += ' is-path';
+      if (vis.swap) cls += ' is-swap';
+      var dots = '';
+      if (vis.missing) dots += '<i class="dot dot-missing"></i>';
+      if (vis.path) dots += '<i class="dot dot-path"></i>';
+      if (vis.swap) dots += '<i class="dot dot-swap"></i>';
+      return '<button type="button" class="' + cls + '" data-chip="' + escapeHtml(name) +
+        '" data-mouse-id="' + escapeHtml(mouse.id) + '"><span class="chip-name">' + escapeHtml(name) +
+        '</span>' + (dots ? '<span class="dots">' + dots + '</span>' : '') + '</button>';
+    }).join('');
+
+    var sacCtl = mouse.sacTime
+      ? '<button type="button" class="stamp stamp-sac" data-action="sac" data-mouse-id="' +
+        escapeHtml(mouse.id) + '" title="Click to restamp"><span class="stamp-label">Sacrificed</span>' +
+        '<span class="stamp-time">' + escapeHtml(mouse.sacTime) + '</span></button>'
+      : '<button type="button" class="btn btn-sac" data-action="sac" data-mouse-id="' +
+        escapeHtml(mouse.id) + '">Sacrifice Now</button>';
+
+    var bloodCtl = '';
+    if (hasBloodColumn()) {
+      if (mouse.bloodTime && mouse.bloodTime !== 'N/A') {
+        bloodCtl = '<button type="button" class="stamp stamp-blood" data-action="blood" data-mouse-id="' +
+          escapeHtml(mouse.id) + '" title="Click to restamp"><span class="stamp-label">Blood</span>' +
+          '<span class="stamp-time">' + escapeHtml(mouse.bloodTime) + '</span></button>';
+      } else if (!mouse.sacTime) {
+        bloodCtl = '<button type="button" class="btn btn-blood is-locked" disabled data-action="blood" data-mouse-id="' +
+          escapeHtml(mouse.id) + '">Blood Drawn</button>';
+      } else {
+        bloodCtl = '<button type="button" class="btn btn-blood" data-action="blood" data-mouse-id="' +
+          escapeHtml(mouse.id) + '">Blood Drawn</button>';
+      }
+    }
+
+    var selectedCount = (mouse.selectedOrgans || []).length;
+    var toolDis = selectedCount ? '' : ' disabled';
+
+    return '<article class="station-card" data-slot="' + slot + '" data-mouse-id="' + escapeHtml(mouse.id) + '">' +
+      '<header class="station-id">' +
+      '<div>' +
+      '<div class="station-id-top">' +
+      '<span class="station-no">#' + escapeHtml(mouse.mouseNo) + '</span>' +
+      (mouse.sex ? '<span class="station-sex">' + escapeHtml(mouse.sex) + '</span>' : '') +
+      '</div>' +
+      '<div class="station-facts">' +
+      '<span class="fact"><span class="label">Cage</span><span class="value">' + escapeHtml(mouse.cage || '—') + '</span></span>' +
+      '<span class="fact"><span class="label">Ear tag</span><span class="value">' + escapeHtml(mouse.tag || '—') + '</span></span>' +
+      '</div>' +
+      '</div>' +
+      '<div class="station-badges">' +
+      '<div class="station-pyrat"><span class="label">PyRat</span><span class="value">' +
+      escapeHtml(mouse.pyrat || '—') + '</span></div>' +
+      (mouse.genotype ? '<span class="geno-label">' + escapeHtml(mouse.genotype) + '</span>' : '') +
+      '</div>' +
+      '</header>' +
+      '<div class="station-times' + (hasBloodColumn() ? '' : ' times-one') + '">' + sacCtl + bloodCtl + '</div>' +
+      weightFieldsHtml(mouse) +
+      '<button type="button" class="btn btn-missing" data-action="missing" data-mouse-id="' +
+      escapeHtml(mouse.id) + '">Missing / Dead</button>' +
+      '<section class="anatomy">' +
+      '<h3>Anatomy exceptions</h3>' +
+      '<div class="chip-grid">' + chips + '</div>' +
+      '</section>' +
+      '<div class="station-tools">' +
+      '<button type="button" class="btn btn-tool" data-action="mark-missing" data-mouse-id="' + escapeHtml(mouse.id) +
+      '"' + toolDis + '>Mark Missing</button>' +
+      '<button type="button" class="btn btn-tool" data-action="swap-internal" data-mouse-id="' + escapeHtml(mouse.id) +
+      '"' + toolDis + '>Internal Swap</button>' +
+      '<button type="button" class="btn btn-tool" data-action="swap-cross" data-mouse-id="' + escapeHtml(mouse.id) +
+      '"' + toolDis + '>Cross Swap</button>' +
+      '<button type="button" class="btn btn-tool" data-action="pathology" data-mouse-id="' + escapeHtml(mouse.id) +
+      '"' + toolDis + '>Pathology / PFA</button>' +
+      '</div>' +
+      '<label class="mouse-notes"><span class="label">General notes</span>' +
+      '<textarea data-general-notes="1" data-mouse-id="' + escapeHtml(mouse.id) + '">' +
+      escapeHtml(mouse.generalNotes || '') + '</textarea></label>' +
+      '<button type="button" class="btn btn-primary btn-next" data-action="save-next" data-mouse-id="' +
+      escapeHtml(mouse.id) + '">Save &amp; Next Mouse</button>' +
+      '</article>';
+  }
+
+  function weightFieldsHtml(mouse) {
+    var fields = (state.source && state.source.weightFields) || [];
+    if (!fields.length) return '';
+    return '<div class="weight-row">' + fields.map(function (field) {
+      var raw = mouse.weights && mouse.weights[field.key] != null ? String(mouse.weights[field.key]) : '';
+      var draft = weightDraft(raw);
+      var cls = 'weight-field';
+      if (draft.invalid) cls += ' is-invalid';
+      if (draft.value && weightWarn(field, draft.value)) cls += ' is-warn';
+      return '<label class="' + cls + '"><span class="label">' + escapeHtml(field.label) + '</span>' +
+        '<input type="text" inputmode="decimal" autocomplete="off" data-weight-key="' + escapeHtml(field.key) +
+        '" data-mouse-id="' + escapeHtml(mouse.id) + '" value="' + escapeHtml(raw) + '">' +
+        '<span class="unit">' + escapeHtml(field.unit || 'g') + '</span></label>';
+    }).join('') + '</div>';
+  }
+
+  function studentSelectHtml(slot) {
+    var selected = (state.stationStudents && state.stationStudents[slot]) || '';
+    var students = (state.source && state.source.students) || [];
+    var options = '<option value="">Student</option>' + students.map(function (name) {
+      return '<option value="' + escapeHtml(name) + '"' + (name === selected ? ' selected' : '') + '>' +
+        escapeHtml(name) + '</option>';
+    }).join('');
+    if (selected && students.indexOf(selected) < 0) {
+      options += '<option value="' + escapeHtml(selected) + '" selected>' + escapeHtml(selected) + '</option>';
+    }
+    return '<label class="station-student"><span class="label">Station ' + (slot + 1) + '</span>' +
+      '<select data-station-slot="' + slot + '">' + options + '</select></label>';
+  }
+
+  function bindStationInputs() {
+    el.stations.querySelectorAll('[data-station-slot]').forEach(function (select) {
+      select.addEventListener('change', onStationStudent);
+      select.addEventListener('click', function (event) { event.stopPropagation(); });
+    });
+    el.stations.querySelectorAll('.chip').forEach(function (chip) {
+      chip.addEventListener('click', onChipClick);
+    });
+    el.stations.querySelectorAll('[data-weight-key]').forEach(function (input) {
+      input.addEventListener('input', onWeightInput);
+      input.addEventListener('click', function (event) { event.stopPropagation(); });
+    });
+    el.stations.querySelectorAll('[data-general-notes]').forEach(function (input) {
+      input.addEventListener('input', onNotesInput);
+      input.addEventListener('click', function (event) { event.stopPropagation(); });
+    });
+  }
+
+  function onStationStudent(event) {
+    var slot = Number(event.target.getAttribute('data-station-slot'));
+    if (!state.stationStudents) state.stationStudents = [];
+    state.stationStudents[slot] = event.target.value;
+    var mouseId = state.stationSlots[slot];
+    var mouse = mouseId ? mouseById(mouseId) : null;
+    if (mouse && mouse.status === 'active') mouse.student = event.target.value;
+    persist();
+  }
+
+  function onChipClick(event) {
+    var mouseId = event.currentTarget.getAttribute('data-mouse-id');
+    var organ = event.currentTarget.getAttribute('data-chip');
+    toggleSelected(mouseId, organ);
+  }
+
+  function toggleSelected(mouseId, organ) {
+    var mouse = mouseById(mouseId);
+    if (!mouse || !organ) return;
+    if (!Array.isArray(mouse.selectedOrgans)) mouse.selectedOrgans = [];
+    var index = mouse.selectedOrgans.indexOf(organ);
+    if (index >= 0) mouse.selectedOrgans.splice(index, 1);
+    else mouse.selectedOrgans.push(organ);
+    persist();
+    renderStations();
+  }
+
+  function selectedOrgans(mouse) {
+    return mouse && Array.isArray(mouse.selectedOrgans) ? mouse.selectedOrgans.slice() : [];
+  }
+
+  function requireSelection(mouse) {
+    var selected = selectedOrgans(mouse);
+    if (!selected.length) {
+      el.syncStatus.textContent = 'Select one or more organs first.';
+      return null;
+    }
+    return selected;
+  }
+
+  function onAppClick(event) {
+    var btn = event.target.closest('[data-action]');
+    if (!btn || !state) return;
+    if (btn.disabled) return;
+    var action = btn.getAttribute('data-action');
+    var mouseId = btn.getAttribute('data-mouse-id');
+    if (action === 'queue-select') selectFromQueue(mouseId);
+    else if (action === 'ice-dismiss') dismissIce(mouseId);
+    else if (action === 'sac') stampSac(mouseId);
+    else if (action === 'blood') stampBlood(mouseId);
+    else if (action === 'missing') markMissing(mouseId);
+    else if (action === 'save-next') saveAndNext(mouseId);
+    else if (action === 'mark-missing') markOrgansMissing(mouseId);
+    else if (action === 'swap-internal') openInternalSwap(mouseId);
+    else if (action === 'swap-cross') openCrossSwap(mouseId);
+    else if (action === 'pathology') openPathology(mouseId);
+    else if (action === 'view-sheet') openSyncedSheet();
+  }
+
+  function firstEmptySlot() {
+    for (var i = 0; i < stationCount(); i++) {
+      if (!state.stationSlots[i]) return i;
+    }
+    return -1;
+  }
+
+  function slotOfMouse(mouseId) {
+    for (var i = 0; i < stationCount(); i++) {
+      if (String(state.stationSlots[i]) === String(mouseId)) return i;
+    }
+    return -1;
+  }
+
+  function selectFromQueue(mouseId) {
+    var mouse = mouseById(mouseId);
+    if (!mouse || mouse.status !== 'queued') return;
+    var slot = firstEmptySlot();
+    if (slot < 0) {
+      el.syncStatus.textContent = 'All stations are full.';
+      return;
+    }
+    state.queueOrder = state.queueOrder.filter(function (id) { return String(id) !== String(mouseId); });
+    mouse.status = 'active';
+    mouse.student = state.stationStudents[slot] || '';
+    state.stationSlots[slot] = String(mouseId);
+    persist();
+    renderAll();
+  }
+
+  function pullNextInto(slot) {
+    var nextId = state.queueOrder.length ? state.queueOrder[0] : null;
+    if (!nextId) {
+      state.stationSlots[slot] = null;
+      return;
+    }
+    state.queueOrder = state.queueOrder.slice(1);
+    var mouse = mouseById(nextId);
+    if (mouse) {
+      mouse.status = 'active';
+      mouse.student = state.stationStudents[slot] || '';
+    }
+    state.stationSlots[slot] = String(nextId);
+  }
+
+  function stampNow() {
+    var d = new Date();
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  function stampSac(mouseId) {
+    var mouse = mouseById(mouseId);
+    if (!mouse) return;
+    mouse.sacTime = stampNow();
+    persist();
+    renderStations();
+  }
+
+  function stampBlood(mouseId) {
+    var mouse = mouseById(mouseId);
+    if (!hasBloodColumn() || !mouse || !mouse.sacTime) return;
+    mouse.bloodTime = stampNow();
+    var existing = state.iceTimers.filter(function (timer) {
+      return String(timer.mouseId) === String(mouseId) && !timer.dismissed;
+    })[0];
+    if (!existing) {
+      state.iceTimers.push({
+        mouseId: String(mouseId),
+        startedAtMs: Date.now(),
+        dismissed: false,
+        expiredAlerted: false
+      });
+    }
+    persist();
+    renderAll();
+  }
+
+  function dismissIce(mouseId) {
+    state.iceTimers.forEach(function (timer) {
+      if (String(timer.mouseId) === String(mouseId) && !timer.dismissed) {
+        timer.dismissed = true;
+      }
+    });
+    persist();
+    renderIce();
+  }
+
+  function markOrgansMissing(mouseId) {
+    var mouse = mouseById(mouseId);
+    if (!mouse) return;
+    var selected = requireSelection(mouse);
+    if (!selected) return;
+    selected.forEach(function (name) {
+      var organ = ensureOrgan(mouse, name);
+      organ.missing = !organ.missing;
+    });
+    mouse.selectedOrgans = [];
+    persist();
+    renderStations();
+  }
+
+  function markMissing(mouseId) {
+    var mouse = mouseById(mouseId);
+    if (!mouse) return;
+    archiveMouse(mouse, 'missing');
+    var slot = slotOfMouse(mouseId);
+    if (slot >= 0) pullNextInto(slot);
+    persist();
+    renderAll();
+  }
+
+  function saveAndNext(mouseId) {
+    var mouse = mouseById(mouseId);
+    if (!mouse) return;
+    if (hasBloodColumn() && !mouse.bloodTime) mouse.bloodTime = 'N/A';
+    archiveMouse(mouse, 'done');
+    var slot = slotOfMouse(mouseId);
+    if (slot >= 0) pullNextInto(slot);
+    persist();
+    renderAll();
+  }
+
+  function archiveMouse(mouse, status) {
+    mouse.status = status;
+    mouse.selectedOrgans = [];
+    mouse.notes = generateNotes(mouse);
+  }
+
+  function organOptions() {
+    return ((state.source && state.source.modalOrgans) || (state.source && state.source.chips) || []).slice();
+  }
+
+  function openInternalSwap(mouseId) {
+    var mouse = mouseById(mouseId);
+    if (!mouse) return;
+    var selected = requireSelection(mouse);
+    if (!selected) return;
+    if (selected.length === 2) {
+      if (!applyInternalSwap(mouse, selected[0], selected[1])) return;
+      mouse.selectedOrgans = [];
+      persist();
+      renderStations();
+      return;
+    }
+    var opts = organSelectHtml(organOptions(), 'organA') + organSelectHtml(organOptions(), 'organB');
+    openModal('Internal Swap — #' + mouse.mouseNo, opts, { type: 'internal', mouseId: mouseId });
+  }
+
+  function applyInternalSwap(mouse, organA, organB) {
+    if (!organA || !organB || organA === organB) {
+      el.syncStatus.textContent = 'Pick two different organs.';
+      return false;
+    }
+    mouse.internalSwaps.push({ a: organA, b: organB });
+    return true;
+  }
+
+  function openCrossSwap(mouseId) {
+    var mouse = mouseById(mouseId);
+    if (!mouse) return;
+    var selected = requireSelection(mouse);
+    if (!selected) return;
+    var others = allMice().filter(function (item) { return String(item.id) !== String(mouseId); });
+    var mouseOpts = others.map(function (item) {
+      return '<option value="' + escapeHtml(item.id) + '">#' + escapeHtml(item.mouseNo) +
+        (item.tag ? ' ' + escapeHtml(item.tag) : '') + '</option>';
+    }).join('');
+    var body = '<p class="field">Tissues: ' + escapeHtml(selected.join(', ')) + '</p>' +
+      '<label class="field">Other mouse<select id="otherMouse">' + mouseOpts + '</select></label>';
+    openModal('Cross-Mouse Swap — #' + mouse.mouseNo, body, {
+      type: 'cross',
+      mouseId: mouseId,
+      organs: selected
+    });
+  }
+
+  function openPathology(mouseId) {
+    var mouse = mouseById(mouseId);
+    if (!mouse) return;
+    var selected = requireSelection(mouse);
+    if (!selected) return;
+    var tags = PATHOLOGY_TAGS.map(function (tag) {
+      return '<button type="button" class="tag-btn" data-tag="' + escapeHtml(tag) + '">' + escapeHtml(tag) + '</button>';
+    }).join('');
+    var body = '<p class="field">Organs: ' + escapeHtml(selected.join(', ')) + '</p>' +
+      '<div class="tag-row">' + tags + '</div>' +
+      '<label class="field">Observation<input type="text" id="pathText" autocomplete="off"></label>' +
+      '<label class="check"><input type="checkbox" id="pathPfa"> Sent to PFA</label>';
+    openModal('Pathology / PFA — #' + mouse.mouseNo, body, {
+      type: 'pathology',
+      mouseId: mouseId,
+      organs: selected
+    });
+  }
+
+  function organSelectHtml(organs, id) {
+    var opts = organs.map(function (name) {
+      return '<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + '</option>';
+    }).join('');
+    return '<label class="field">' + (id === 'organB' ? 'Organ B' : (id === 'organA' ? 'Organ A' : 'Organ')) +
+      '<select id="' + id + '">' + opts + '</select></label>';
+  }
+
+  function openModal(title, body, context) {
+    modalContext = context;
+    el.modalTitle.textContent = title;
+    el.modalBody.innerHTML = body;
+    el.modalBody.querySelectorAll('.tag-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        btn.classList.toggle('is-on');
+      });
+    });
+    el.modalRoot.classList.remove('hidden');
+    el.modalRoot.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeModal() {
+    modalContext = null;
+    el.modalRoot.classList.add('hidden');
+    el.modalRoot.setAttribute('aria-hidden', 'true');
+    el.modalBody.innerHTML = '';
+  }
+
+  function saveModal() {
+    if (!modalContext) return;
+    var mouse = mouseById(modalContext.mouseId);
+    if (!mouse) {
+      closeModal();
+      return;
+    }
+    if (modalContext.type === 'internal') {
+      if (!applyInternalSwap(mouse, valueOf('organA'), valueOf('organB'))) return;
+      mouse.selectedOrgans = [];
+    } else if (modalContext.type === 'cross') {
+      var other = mouseById(valueOf('otherMouse'));
+      var tissues = modalContext.organs || [];
+      if (!other || !tissues.length) {
+        el.syncStatus.textContent = 'Pick another mouse.';
+        return;
+      }
+      tissues.forEach(function (tissue) {
+        mouse.crossSwaps.push({ tissue: tissue, otherMouseNo: String(other.mouseNo) });
+        other.crossSwaps.push({ tissue: tissue, otherMouseNo: String(mouse.mouseNo) });
+      });
+      mouse.selectedOrgans = [];
+    } else if (modalContext.type === 'pathology') {
+      var tags = [];
+      el.modalBody.querySelectorAll('.tag-btn.is-on').forEach(function (btn) {
+        tags.push(btn.getAttribute('data-tag'));
+      });
+      var text = valueOf('pathText');
+      var pfa = !!(document.getElementById('pathPfa') && document.getElementById('pathPfa').checked);
+      if (!tags.length && !text && !pfa) {
+        el.syncStatus.textContent = 'Add a tag, a note, or PFA.';
+        return;
+      }
+      (modalContext.organs || []).forEach(function (organ) {
+        mouse.pathology.push({ organ: organ, tags: tags.slice(), text: text, pfa: pfa });
+        if (pfa) ensureOrgan(mouse, organ).pfa = true;
+      });
+      mouse.selectedOrgans = [];
+    }
+    persist();
+    closeModal();
+    renderAll();
+  }
+
+  function valueOf(id) {
+    var node = document.getElementById(id);
+    return node ? String(node.value || '').trim() : '';
+  }
+
+  function weightFieldByKey(key) {
+    var fields = (state.source && state.source.weightFields) || [];
+    for (var i = 0; i < fields.length; i++) {
+      if (fields[i].key === key) return fields[i];
+    }
+    return null;
+  }
+
+  function weightDraft(raw) {
+    var text = String(raw || '').trim().replace(',', '.');
+    if (!text) return { empty: true };
+    if (/^\d+\.$/.test(text)) return { draft: true };
+    if (!/^\d+(\.\d+)?$/.test(text)) return { invalid: true };
+    return { value: text };
+  }
+
+  function canonicalWeight(raw) {
+    var draft = weightDraft(raw);
+    return draft.value || '';
+  }
+
+  function weightWarn(field, canonical) {
+    if (!field || !canonical) return false;
+    var num = Number(canonical);
+    if (!isFinite(num)) return false;
+    if (field.min != null && field.min !== '' && num < Number(field.min)) return true;
+    if (field.max != null && field.max !== '' && num > Number(field.max)) return true;
+    return false;
+  }
+
+  function onWeightInput(event) {
+    var input = event.target;
+    var mouse = mouseById(input.getAttribute('data-mouse-id'));
+    var key = input.getAttribute('data-weight-key');
+    if (!mouse || !key) return;
+    if (!mouse.weights) mouse.weights = {};
+    var draft = weightDraft(input.value);
+    var label = input.parentElement;
+    var field = weightFieldByKey(key);
+    label.classList.remove('is-invalid', 'is-warn');
+    if (draft.empty) {
+      mouse.weights[key] = '';
+      persist();
+      return;
+    }
+    if (draft.invalid) {
+      label.classList.add('is-invalid');
+      return;
+    }
+    if (draft.draft) return;
+    mouse.weights[key] = draft.value;
+    if (weightWarn(field, draft.value)) label.classList.add('is-warn');
+    persist();
+  }
+
+  function onNotesInput(event) {
+    var mouse = mouseById(event.target.getAttribute('data-mouse-id'));
+    if (!mouse) return;
+    mouse.generalNotes = event.target.value;
+    if (notesTimer) clearTimeout(notesTimer);
+    notesTimer = setTimeout(function () {
+      notesTimer = null;
+      persist();
+    }, NOTES_DEBOUNCE_MS);
+  }
+
+  function displayOrgan(name) {
+    if (name === 'L-liver' || name === 'L-Liver') return 'Left Liver';
+    return name;
+  }
+
+  function hasPathology(mouse, name) {
+    return (mouse.pathology || []).some(function (item) { return item.organ === name; });
+  }
+
+  function organNoteParts(mouse) {
+    var parts = [];
+    var organs = mouse.organs || {};
+    Object.keys(organs).forEach(function (name) {
+      if (readOrgan(mouse, name).missing) parts.push(displayOrgan(name) + ': Missing');
+    });
+    (mouse.pathology || []).forEach(function (item) {
+      var bits = (item.tags || []).map(function (tag) { return String(tag).toLowerCase(); });
+      if (item.text) bits.push(String(item.text).trim());
+      var detail = bits.filter(Boolean).join(', ');
+      var clause = displayOrgan(item.organ) + ': Pathology' + (detail ? ' (' + detail + ')' : '');
+      if (item.pfa) clause += ', PFA';
+      parts.push(clause);
+    });
+    Object.keys(organs).forEach(function (name) {
+      if (readOrgan(mouse, name).pfa && !hasPathology(mouse, name)) {
+        parts.push(displayOrgan(name) + ': PFA');
+      }
+    });
+    (mouse.internalSwaps || []).forEach(function (swapItem) {
+      parts.push(displayOrgan(swapItem.a) + ': Internal swap with ' + displayOrgan(swapItem.b));
+    });
+    (mouse.crossSwaps || []).forEach(function (swapItem) {
+      parts.push(displayOrgan(swapItem.tissue) + ': Cross swap with #' + swapItem.otherMouseNo);
+    });
+    return parts;
+  }
+
+  function generateNotes(mouse) {
+    if (!mouse) return '';
+    var parts = [];
+    if (mouse.status === 'missing') parts.push('Missing/Dead');
+    organNoteParts(mouse).forEach(function (part) { parts.push(part); });
+    var general = String(mouse.generalNotes || '').trim();
+    if (general) parts.push(general);
+    return parts.join('; ');
+  }
+
+  function exportFields(mouse) {
+    var missing = [];
+    var pfa = [];
+    var organs = mouse.organs || {};
+    Object.keys(organs).forEach(function (name) {
+      var organ = readOrgan(mouse, name);
+      if (organ.missing) missing.push(name);
+      if (organ.pfa) pfa.push(name);
+    });
+    (mouse.pathology || []).forEach(function (item) {
+      if (item.pfa && pfa.indexOf(item.organ) < 0) pfa.push(item.organ);
+    });
+    var pathologyText = (mouse.pathology || []).map(function (item) {
+      var bits = (item.tags || []).slice();
+      if (item.text) bits.push(item.text);
+      return item.organ + ': ' + bits.join(', ');
+    }).join('; ');
+    return {
+      mouseNo: String(mouse.mouseNo),
+      sheetRow: mouse.sheetRow || null,
+      student: mouse.student || '',
+      sacTime: mouse.sacTime || '',
+      bloodTime: mouse.bloodTime || '',
+      status: mouse.status || '',
+      notes: isTerminal(mouse) ? generateNotes(mouse) : '',
+      weights: mouse.weights || {},
+      generalNotes: mouse.generalNotes || '',
+      cells: mouse.cells || {},
+      missingOrgans: missing,
+      pfaOrgans: pfa,
+      pathologyOrgans: (mouse.pathology || []).map(function (item) { return item.organ; }),
+      pathologyTypes: (mouse.pathology || []).map(function (item) {
+        return (item.tags || []).join(', ');
+      }),
+      pathologyText: pathologyText,
+      crossSwaps: (mouse.crossSwaps || []).map(function (swapItem) {
+        return swapItem.tissue + ' with #' + swapItem.otherMouseNo;
+      }),
+      internalSwaps: (mouse.internalSwaps || []).map(function (swapItem) {
+        return swapItem.a + ' with ' + swapItem.b;
+      })
+    };
+  }
+
+  function buildPayload() {
+    return {
+      sourceFileId: state.source.fileId,
+      sourceFileName: state.source.fileName,
+      folderId: (state.source && state.source.projectFolderId) || pipeline.folderId || '',
+      exportFileId: state.exportFileId || '',
+      exportUrl: state.exportUrl || '',
+      exportFileName: state.exportFileName || '',
+      meta: state.source.meta || {},
+      mice: allMice().map(exportFields)
+    };
+  }
+
+  function downloadJsonBackup() {
+    if (!state) return;
+    var blob = new Blob([JSON.stringify(buildPayload(), null, 2)], { type: 'application/json;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'dissection-session.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function onSync(opts) {
+    opts = opts || {};
+    if (!state || syncing) return;
+    if (!opts.auto) {
+      var leftover = (state.queueOrder || []).length + state.stationSlots.filter(Boolean).length;
+      if (leftover && !confirm('Some mice are not archived yet. Export anyway?')) return;
+    }
+    syncing = true;
+    el.syncStatus.textContent = 'Uploading…';
+    el.btnSync.disabled = true;
+    renderComplete();
+    var payload = buildPayload();
+    gasRun('saveSessionData', payload).then(function (result) {
+      syncing = false;
+      state.exported = true;
+      state.lastSyncOk = true;
+      if (result && result.fileId) state.exportFileId = result.fileId;
+      if (result && result.url) state.exportUrl = result.url;
+      if (result && result.fileName) state.exportFileName = result.fileName;
+      persist();
+      el.btnSync.disabled = false;
+      var url = state.exportUrl || '';
+      el.syncStatus.innerHTML = 'Saved' + (state.exportFileName ? ': ' + escapeHtml(state.exportFileName) : '') +
+        (url ? ' · <a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">Open sheet</a>' : '');
+      renderComplete();
+    }).catch(function (error) {
+      syncing = false;
+      state.lastSyncOk = false;
+      persist();
+      el.btnSync.disabled = false;
+      el.syncStatus.textContent = (error && error.message ? error.message : 'Export failed.') +
+        ' JSON backup is available.';
+      renderComplete();
+      if (!opts.auto) downloadJsonBackup();
+    });
+  }
+
+  function renderComplete() {
+    if (!el.completeScreen) return;
+    if (!state || !sessionComplete()) {
+      el.completeScreen.classList.add('hidden');
+      el.completeScreen.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    el.completeScreen.classList.remove('hidden');
+    el.completeScreen.setAttribute('aria-hidden', 'false');
+    var iceBlock = el.completeScreen.querySelector('.complete-ice');
+    if (iceBlock) iceBlock.classList.toggle('hidden', !hasBloodColumn());
+    var mice = allMice();
+    var done = mice.filter(function (mouse) { return mouse.status === 'done'; }).length;
+    var missing = mice.filter(function (mouse) { return mouse.status === 'missing'; }).length;
+    var endMs = state.completedAtMs || Date.now();
+    var startMs = state.startedAtMs || endMs;
+    if (el.completeMetrics) {
+      el.completeMetrics.innerHTML =
+        metricHtml('Completed', String(done)) +
+        metricHtml('Missing', String(missing)) +
+        metricHtml('Duration', formatDuration(endMs - startMs)) +
+        metricHtml('Sac times', sacRange());
+    }
+    var cloud = 'Cloud sync pending';
+    var badge = '';
+    if (syncing) cloud = 'Cloud sync in progress';
+    else if (state.lastSyncOk === true) {
+      cloud = 'Cloud sync verified';
+      badge = ' is-ok';
+    } else if (state.lastSyncOk === false) {
+      cloud = 'Cloud sync failed';
+      badge = ' is-bad';
+    }
+    if (el.completeSync) {
+      el.completeSync.className = 'sync-badge' + badge;
+      el.completeSync.textContent = 'Local session saved · ' + cloud;
+    }
+    if (el.btnViewSheet) el.btnViewSheet.disabled = !(state.exportUrl && state.lastSyncOk === true);
+    renderIce();
+  }
+
+  function metricHtml(label, value) {
+    return '<div class="metric"><span class="label">' + escapeHtml(label) + '</span><span class="value">' +
+      escapeHtml(value) + '</span></div>';
+  }
+
+  function formatDuration(ms) {
+    var sec = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+    var hours = Math.floor(sec / 3600);
+    var minutes = Math.floor((sec % 3600) / 60);
+    var seconds = sec % 60;
+    if (hours) return hours + 'h ' + minutes + 'm';
+    if (minutes) return minutes + 'm ' + seconds + 's';
+    return seconds + 's';
+  }
+
+  function timeToMin(text) {
+    var parts = String(text || '').split(':');
+    if (parts.length < 2) return null;
+    var hours = Number(parts[0]);
+    var minutes = Number(parts[1]);
+    if (!isFinite(hours) || !isFinite(minutes)) return null;
+    return hours * 60 + minutes;
+  }
+
+  function sacRange() {
+    var times = allMice().map(function (mouse) { return mouse.sacTime || ''; }).filter(function (text) {
+      return timeToMin(text) != null && /^\d{2}:\d{2}$/.test(text);
+    });
+    if (!times.length) return '—';
+    times.sort(function (a, b) { return timeToMin(a) - timeToMin(b); });
+    if (times[0] === times[times.length - 1]) return times[0];
+    return times[0] + ' – ' + times[times.length - 1];
+  }
+
+  function openSyncedSheet() {
+    if (!state || !state.exportUrl || state.lastSyncOk !== true) return;
+    window.open(state.exportUrl, '_blank', 'noopener');
+  }
+
+  function startTicks() {
+    stopTicks();
+    tickTimer = setInterval(function () { tickIce(false); }, 1000);
+  }
+
+  function stopTicks() {
+    if (tickTimer) {
+      clearInterval(tickTimer);
+      tickTimer = null;
+    }
+  }
+
+  function tickIce(fromResume) {
+    if (!state) return;
+    pendingBeep = false;
+    var dirty = false;
+    (state.iceTimers || []).forEach(function (timer) {
+      if (timer.dismissed) return;
+      if (remainingMs(timer) > 0) return;
+      if (timer.expiredAlerted) return;
+      timer.expiredAlerted = true;
+      pendingBeep = true;
+      dirty = true;
+    });
+    if (dirty) persist();
+    if (pendingBeep) playBeep();
+    if (sessionActive) renderIce();
+  }
+
+  function unlockAudio() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!audioCtx) audioCtx = new Ctx();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (error) {}
+  }
+
+  function playBeep() {
+    unlockAudio();
+    if (audioCtx) {
+      try {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.18);
+        return;
+      } catch (error) {}
+    }
+    try {
+      var audio = new Audio(
+        'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
+      );
+      audio.volume = 0.2;
+      audio.play();
+    } catch (error2) {}
+  }
+
+  function startWakeLock() {
+    wantWakeLock = true;
+    requestWakeLock();
+  }
+
+  function stopWakeLock() {
+    wantWakeLock = false;
+    if (wakeLockSentinel) {
+      try { wakeLockSentinel.release(); } catch (error) {}
+      wakeLockSentinel = null;
+    }
+  }
+
+  function requestWakeLock() {
+    if (!wantWakeLock || !navigator.wakeLock) return;
+    navigator.wakeLock.request('screen').then(function (sentinel) {
+      wakeLockSentinel = sentinel;
+      sentinel.addEventListener('release', function () {
+        if (wantWakeLock && document.visibilityState === 'visible') requestWakeLock();
+      });
+    }).catch(function () {});
+  }
+
+  function onVisibilityChange() {
+    if (document.visibilityState === 'visible' && wantWakeLock) requestWakeLock();
+  }
+
+  function formatDateTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    return d.toLocaleString();
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>
