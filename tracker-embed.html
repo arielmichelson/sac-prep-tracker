@@ -1279,7 +1279,6 @@
   function init() {
     bindChrome();
     document.addEventListener('visibilitychange', onVisibilityChange);
-    gasRun('ping').catch(function () {});
     if (pipeline.spreadsheetId && el.btnSetupBack) {
       el.btnSetupBack.classList.add('hidden');
     }
@@ -1287,8 +1286,10 @@
       showMissingContext();
       return;
     }
-    showSavedResume();
-    pickFile(pipeline.spreadsheetId);
+    gasRun('ping').catch(function () {}).then(function () {
+      showSavedResume();
+      pickFile(pipeline.spreadsheetId);
+    });
   }
 
   function bindChrome() {
@@ -1343,6 +1344,31 @@
     return Promise.reject(new Error('Apps Script is not available'));
   }
 
+  function trackerServiceSnippet_(text) {
+    return String(text || '')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120);
+  }
+
+  function trackerNonJsonError_(status, text) {
+    var detail = 'HTTP ' + String(status || 0);
+    var snippet = trackerServiceSnippet_(text);
+    if (snippet) detail += ': ' + snippet;
+    return new Error('The lab service did not return JSON (' + detail + ')');
+  }
+
+  function retryTrackerPost_(execUrl, requestBody, attempt) {
+    return new Promise(function (resolve, reject) {
+      setTimeout(function () {
+        postTrackerJson_(execUrl, requestBody, attempt + 1).then(resolve, reject);
+      }, 800);
+    });
+  }
+
   function postTrackerJson_(execUrl, requestBody, attempt) {
     return fetch(execUrl, {
       method: 'POST',
@@ -1351,31 +1377,20 @@
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(requestBody)
     }).then(function (response) {
-      return response.text();
-    }).then(function (text) {
-      var body;
-      try {
-        body = JSON.parse(text);
-      } catch (error) {
-        if (!attempt) {
-          return new Promise(function (resolve, reject) {
-            setTimeout(function () {
-              postTrackerJson_(execUrl, requestBody, 1).then(resolve, reject);
-            }, 800);
-          });
+      return response.text().then(function (text) {
+        var body;
+        try {
+          body = JSON.parse(text);
+        } catch (error) {
+          if (attempt >= 2) throw trackerNonJsonError_(response.status, text);
+          return retryTrackerPost_(execUrl, requestBody, attempt);
         }
-        throw new Error('The lab service did not return JSON.');
-      }
-      if (!body || !body.ok) throw new Error((body && body.error) || 'Request failed');
-      return body.data;
-    }).catch(function (error) {
-      if (attempt) throw error;
-      if (error && error.message === 'The lab service did not return JSON.') throw error;
-      return new Promise(function (resolve, reject) {
-        setTimeout(function () {
-          postTrackerJson_(execUrl, requestBody, 1).then(resolve, reject);
-        }, 800);
+        if (!body || !body.ok) throw new Error((body && body.error) || 'Request failed');
+        return body.data;
       });
+    }, function (networkError) {
+      if (attempt >= 2) throw networkError;
+      return retryTrackerPost_(execUrl, requestBody, attempt);
     });
   }
 
