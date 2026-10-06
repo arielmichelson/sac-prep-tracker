@@ -1327,11 +1327,23 @@
     endSession(true);
   }
 
+  var TRACKER_LIGHT_ = { ping: 1, getRequestResult: 1, loadPlanningSheet: 1, listPlanningFiles: 1 };
+
+  function newRequestId_() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 14);
+  }
+
   function gasRun(name, arg) {
     var execUrl = String((pipeline && pipeline.execUrl) || window.PIPELINE_EXEC_URL || '').trim();
     if (execUrl) {
       var requestBody = { action: name, payload: arguments.length > 1 ? arg : {} };
-      return postTrackerJson_(execUrl, requestBody, 0);
+      if (name === 'saveSessionData' && requestBody.payload && typeof requestBody.payload === 'object') {
+        if (!requestBody.payload.requestId) requestBody.payload.requestId = newRequestId_();
+        requestBody.requestId = requestBody.payload.requestId;
+        return callSave_(execUrl, requestBody, 2);
+      }
+      return sendTrackerJson_(execUrl, requestBody);
     }
     var runner = window.google && google.script && google.script.run;
     if (runner && runner.withSuccessHandler) {
@@ -1361,36 +1373,142 @@
     return new Error('The lab service did not return JSON (' + detail + ')');
   }
 
-  function retryTrackerPost_(execUrl, requestBody, attempt) {
-    return new Promise(function (resolve, reject) {
-      setTimeout(function () {
-        postTrackerJson_(execUrl, requestBody, attempt + 1).then(resolve, reject);
-      }, 800);
-    });
+  function trackerGetUrl_(execUrl, requestBody) {
+    var joiner = String(execUrl).indexOf('?') >= 0 ? '&' : '?';
+    return execUrl + joiner + 'payload=' + encodeURIComponent(JSON.stringify(requestBody)) + '&t=' + Date.now();
   }
 
-  function postTrackerJson_(execUrl, requestBody, attempt) {
+  function trackerPrefersGet_(execUrl, requestBody) {
+    if (!TRACKER_LIGHT_[requestBody.action]) return false;
+    return trackerGetUrl_(execUrl, requestBody).length <= 1800;
+  }
+
+  function fetchTrackerOnce_(execUrl, requestBody, useGet) {
+    if (useGet) {
+      return fetch(trackerGetUrl_(execUrl, requestBody), {
+        method: 'GET',
+        redirect: 'follow',
+        credentials: 'omit',
+        cache: 'no-store'
+      });
+    }
     return fetch(execUrl, {
       method: 'POST',
       redirect: 'follow',
       credentials: 'omit',
+      cache: 'no-store',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(requestBody)
-    }).then(function (response) {
+    });
+  }
+
+  function trackerDriveMiss_(status, text) {
+    var blob = String(text || '');
+    if (Number(status) === 404) return true;
+    return blob.indexOf('unable to open the file') !== -1 || blob.indexOf('<html') !== -1;
+  }
+
+  function parseTrackerBody_(status, text) {
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      var parseError = trackerNonJsonError_(status, text);
+      parseError.driveMiss = trackerDriveMiss_(status, text);
+      throw parseError;
+    }
+  }
+
+  function acceptTrackerBody_(body) {
+    if (!body || !body.ok) throw new Error((body && body.error) || 'Request failed');
+    return body.data;
+  }
+
+  function trackerShouldPoll_(body) {
+    if (!body || body.ok) return false;
+    var message = String(body.error || '');
+    return message === 'REQUEST_PENDING' || message.indexOf('lab pipeline is busy') !== -1;
+  }
+
+  function sendTrackerJson_(execUrl, requestBody) {
+    var preferGet = trackerPrefersGet_(execUrl, requestBody);
+    return fetchTrackerOnce_(execUrl, requestBody, preferGet).then(function (response) {
+      return response.text().then(function (text) {
+        try {
+          return acceptTrackerBody_(parseTrackerBody_(response.status, text));
+        } catch (error) {
+          if (!error || !error.driveMiss) throw error;
+          return fetchTrackerOnce_(execUrl, requestBody, !preferGet).then(function (retry) {
+            return retry.text().then(function (retryText) {
+              return acceptTrackerBody_(parseTrackerBody_(retry.status, retryText));
+            });
+          });
+        }
+      });
+    }, function () {
+      return fetchTrackerOnce_(execUrl, requestBody, !preferGet).then(function (retry) {
+        return retry.text().then(function (retryText) {
+          return acceptTrackerBody_(parseTrackerBody_(retry.status, retryText));
+        });
+      });
+    });
+  }
+
+  function waitMs_(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
+  function callSave_(execUrl, requestBody, invokesLeft) {
+    return fetchTrackerOnce_(execUrl, requestBody, false).then(function (response) {
       return response.text().then(function (text) {
         var body;
         try {
-          body = JSON.parse(text);
+          body = parseTrackerBody_(response.status, text);
         } catch (error) {
-          if (attempt >= 2) throw trackerNonJsonError_(response.status, text);
-          return retryTrackerPost_(execUrl, requestBody, attempt);
+          return pollSave_(execUrl, requestBody, invokesLeft, 0, 0);
         }
-        if (!body || !body.ok) throw new Error((body && body.error) || 'Request failed');
-        return body.data;
+        if (trackerShouldPoll_(body)) return pollSave_(execUrl, requestBody, invokesLeft, 0, 0);
+        if (body && body.ok) return body.data;
+        throw new Error((body && body.error) || 'Request failed');
       });
-    }, function (networkError) {
-      if (attempt >= 2) throw networkError;
-      return retryTrackerPost_(execUrl, requestBody, attempt);
+    }, function () {
+      return pollSave_(execUrl, requestBody, invokesLeft, 0, 0);
+    });
+  }
+
+  function pollSave_(execUrl, requestBody, invokesLeft, notFoundStreak, pendingPolls) {
+    if (pendingPolls > 80) {
+      return Promise.reject(new Error('The lab service did not return JSON (HTTP 404)'));
+    }
+    return sendTrackerJson_(execUrl, {
+      action: 'getRequestResult',
+      requestId: requestBody.requestId
+    }).then(function (ticket) {
+      if (ticket && ticket.status === 'DONE') {
+        if (ticket.error) throw new Error(ticket.error);
+        return ticket.data;
+      }
+      if (ticket && ticket.status === 'PENDING') {
+        return waitMs_(1500).then(function () {
+          return pollSave_(execUrl, requestBody, invokesLeft, 0, pendingPolls + 1);
+        });
+      }
+      var misses = notFoundStreak + 1;
+      if (misses < 4) {
+        return waitMs_(1500).then(function () {
+          return pollSave_(execUrl, requestBody, invokesLeft, misses, pendingPolls);
+        });
+      }
+      if (invokesLeft <= 0) throw new Error('The lab service did not return JSON (HTTP 404)');
+      return callSave_(execUrl, requestBody, invokesLeft - 1);
+    }, function () {
+      var misses = notFoundStreak + 1;
+      if (misses < 4) {
+        return waitMs_(1500).then(function () {
+          return pollSave_(execUrl, requestBody, invokesLeft, misses, pendingPolls);
+        });
+      }
+      if (invokesLeft <= 0) throw new Error('The lab service did not return JSON (HTTP 404)');
+      return callSave_(execUrl, requestBody, invokesLeft - 1);
     });
   }
 
